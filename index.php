@@ -1,3 +1,3 @@
 <?php
-phpinfo();//1234
+phpinfo();//12345
 ?>
