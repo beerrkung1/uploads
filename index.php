@@ -1,3 +1,3 @@
 <?php
-phpinfo();//1002
+phpinfo();//10025
 ?>
