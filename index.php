@@ -1,3 +1,3 @@
 <?php
-phpinfo();//ฝฝฝ
+phpinfo();//ฝฝฝงง
 ?>
