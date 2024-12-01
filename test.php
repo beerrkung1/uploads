@@ -1,42 +1,22 @@
 <?php
-// ตั้งค่าโฟลเดอร์เริ่มต้นเป็นไดรฟ์ D:
-$baseDir = 'D:\\';
+// ตั้งค่า path ไดรฟ์ D:
+$directory = 'D:/';
 
-// ฟังก์ชันเพื่อให้แน่ใจว่าเส้นทางไม่ออกนอกไดรฟ์ D:
-function sanitizePath($path, $baseDir) {
-    $realBase = realpath($baseDir);
-    $realUserPath = realpath($path);
-    
-    if ($realUserPath === false || strpos($realUserPath, $realBase) !== 0) {
-        return $realBase;
-    }
-    return $realUserPath;
-}
+// ตรวจสอบว่า path มีอยู่จริง
+if (is_dir($directory)) {
+    // อ่านรายการไฟล์และโฟลเดอร์ในไดรฟ์
+    $files = scandir($directory);
 
-// ตรวจสอบและรับข้อมูลจากฟอร์ม
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $targetDir = isset($_POST['folder']) ? $_POST['folder'] : $baseDir;
-    $targetDir = sanitizePath($targetDir, $baseDir);
-
-    if (!is_dir($targetDir)) {
-        die('โฟลเดอร์เป้าหมายไม่ถูกต้อง');
-    }
-
-    if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
-        $uploadedFile = $_FILES['file']['tmp_name'];
-        $filename = basename($_FILES['file']['name']);
-        $targetFilePath = $targetDir . DIRECTORY_SEPARATOR . $filename;
-
-        // ย้ายไฟล์ไปยังโฟลเดอร์เป้าหมาย
-        if (move_uploaded_file($uploadedFile, $targetFilePath)) {
-            echo 'อัปโหลดไฟล์สำเร็จ: ' . htmlspecialchars($filename);
-        } else {
-            echo 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์';
+    // แสดงผลไฟล์และโฟลเดอร์ในไดรฟ์ D:
+    echo "<h1>รายการไฟล์และโฟลเดอร์ในไดรฟ์ D:</h1>";
+    echo "<ul>";
+    foreach ($files as $file) {
+        if ($file !== "." && $file !== "..") {
+            echo "<li>$file</li>";
         }
-    } else {
-        echo 'ไม่มีไฟล์ถูกอัปโหลดหรือเกิดข้อผิดพลาด';
     }
+    echo "</ul>";
 } else {
-    echo 'การเข้าถึงหน้านี้ไม่ได้รับอนุญาต';
+    echo "ไม่สามารถเข้าถึงไดรฟ์ D: ได้";
 }
 ?>
