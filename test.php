@@ -1,22 +1,20 @@
 <?php
-// ตั้งค่า path ไดรฟ์ D:
 $directory = 'D:/';
 
-// ตรวจสอบว่า path มีอยู่จริง
-if (is_dir($directory)) {
-    // อ่านรายการไฟล์และโฟลเดอร์ในไดรฟ์
-    $files = scandir($directory);
-
-    // แสดงผลไฟล์และโฟลเดอร์ในไดรฟ์ D:
-    echo "<h1>รายการไฟล์และโฟลเดอร์ในไดรฟ์ D:</h1>";
-    echo "<ul>";
-    foreach ($files as $file) {
-        if ($file !== "." && $file !== "..") {
-            echo "<li>$file</li>";
+try {
+    if (is_dir($directory)) {
+        $files = scandir($directory);
+        echo "<h1>รายการไฟล์และโฟลเดอร์ในไดรฟ์ D:</h1><ul>";
+        foreach ($files as $file) {
+            if ($file !== "." && $file !== "..") {
+                echo "<li>$file</li>";
+            }
         }
+        echo "</ul>";
+    } else {
+        throw new Exception("ไม่สามารถเข้าถึงไดรฟ์ D: ได้ หรือไม่มีไดรฟ์นี้ในระบบ");
     }
-    echo "</ul>";
-} else {
-    echo "ไม่สามารถเข้าถึงไดรฟ์ D: ได้";
+} catch (Exception $e) {
+    echo "ข้อผิดพลาด: " . $e->getMessage();
 }
 ?>
