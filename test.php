@@ -1,5 +1,5 @@
 <?php
-$directory = 'D:/Project Data/2567/';
+$directory = 'D:/Project Data/2567/project/';
 try {
     if (is_dir($directory)) {
         $files = scandir($directory);
