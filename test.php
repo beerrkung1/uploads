@@ -13,6 +13,6 @@ try {
         throw new Exception("ไม่สามารถเข้าถึงไดรฟ์ D: ได้");
     }
 } catch (Exception $e) {
-    echo "ข้อผิดพลาด: " . $e->getMessage();//12345
+    echo "ข้อผิดพลาด: " . $e->getMessage();//1234566
 }
 ?>
