@@ -20,3 +20,4 @@ if ($username === ALLOWED_USERNAME && password_verify($password, ALLOWED_PASSWOR
     exit();
 }
 
+?>
