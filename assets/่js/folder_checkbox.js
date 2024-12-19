@@ -1,41 +1,34 @@
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM Loaded, initializing folder structure...');
     const folderContainer = document.getElementById('folder-container');
     const backBtn = document.getElementById('back-btn');
-    let currentPath = ""; // path ที่เลือก ณ ปัจจุบัน
+    let currentPath = "";
 
-    // เมื่อคลิก checkbox เลือกโฟลเดอร์
     folderContainer.addEventListener('change', async (e) => {
         if (e.target.classList.contains('folder-checkbox')) {
-            // เมื่อเลือกโฟลเดอร์ในระดับนี้แล้ว ให้ซ่อนโฟลเดอร์อื่นทั้งหมด และโหลด subfolder ของโฟลเดอร์ที่เลือก
             const chosenFolder = e.target.value;
-            // ปรับ currentPath
             currentPath = (currentPath ? currentPath + "\\" : "") + chosenFolder;
-
-            // เรียก AJAX หาซับโฟลเดอร์ของ currentPath
+            console.log('Chosen folder:', currentPath);
             let subfolders = await loadSubFolders(currentPath);
+            console.log('Subfolders of', currentPath, ':', subfolders);
             renderFolders(subfolders);
-
-            // ถ้ามี currentPath แสดงปุ่ม back ได้
             backBtn.style.display = currentPath ? 'inline-block' : 'none';
         }
     });
 
-    // ปุ่ม Back
     backBtn.addEventListener('click', async () => {
-        // ถอยกลับ 1 ระดับ
         let parts = currentPath.split('\\');
-        parts.pop(); // ลบโฟลเดอร์สุดท้าย
+        parts.pop();
         currentPath = parts.join('\\');
-
-        // โหลดโฟลเดอร์ในระดับนี้
+        console.log('Go back, current path:', currentPath);
         let subfolders = await loadSubFolders(currentPath);
+        console.log('Subfolders of', currentPath, ':', subfolders);
         renderFolders(subfolders);
-
-        // ถ้า currentPath ว่าง แปลว่าอยู่ระดับ root ไม่ต้องแสดง back
         backBtn.style.display = currentPath ? 'inline-block' : 'none';
     });
 
     async function loadSubFolders(path) {
+        console.log('Loading subfolders for path:', path);
         const formData = new FormData();
         formData.append('path', path);
         let response = await fetch('list_folders.php', {
@@ -44,19 +37,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (response.ok) {
             let data = await response.json();
-            if (data.folders) {
-                return data.folders;
+            if (data.error) {
+                console.error('Error from list_folders.php:', data.error, data);
             }
+            return data.folders || [];
+        } else {
+            console.error('Failed to load subfolders, status:', response.status);
         }
         return [];
     }
 
     function renderFolders(folders) {
-        // ลบโฟลเดอร์เก่า
         folderContainer.innerHTML = "";
-
         if (folders.length > 0) {
-            // ถ้ามี subfolders แสดงเป็น checkbox ให้เลือก
             folders.forEach(folder => {
                 const label = document.createElement('label');
                 label.style.display = 'block';
@@ -69,22 +62,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 folderContainer.appendChild(label);
             });
         } else {
-            // ไม่มี subfolder แล้ว แสดงว่า currentPath คือ path สุดท้าย
-            // ผู้ใช้สามารถอัปโหลดไฟล์ได้
-            // แสดงข้อความว่าไม่มีโฟลเดอร์ย่อยแล้ว
             const p = document.createElement('p');
-            p.textContent = "ไม่มีโฟลเดอร์ย่อยอีกแล้ว คุณสามารถอัปโหลดไฟล์ในโฟลเดอร์นี้";
+            p.textContent = "ไม่มีโฟลเดอร์ย่อย สามารถอัพโหลดไฟล์ได้";
             folderContainer.appendChild(p);
         }
-
-        // อัปเดต hidden input สำหรับอัปโหลด
-        const finalInput = document.querySelector('input[name="final_folder"]');
-        finalInput.value = currentPath;
+        document.querySelector('input[name="final_folder"]').value = currentPath;
     }
 
-    // เริ่มต้นโหลดโฟลเดอร์ระดับบนสุด
     (async function init() {
+        console.log('Init load root folders');
         let rootFolders = await loadSubFolders("");
+        console.log('Root folders:', rootFolders);
         renderFolders(rootFolders);
         backBtn.style.display = 'none';
     })();
