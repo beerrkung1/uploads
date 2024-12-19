@@ -7,26 +7,28 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit;
 }
 
-// เมื่ออัปโหลดไฟล์
+// เมื่ออัปโหลด
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $final_folder = $_POST['final_folder'] ?? '';
-    if (strpos($final_folder, '..') !== false) {
+    $first_folder = $_POST['first_folder'] ?? '';
+    $second_folder = $_POST['second_folder'] ?? '';
+
+    if (strpos($first_folder, '..') !== false || strpos($second_folder, '..') !== false) {
         $error = "โฟลเดอร์ไม่ถูกต้อง";
     } else {
+        // final path: D:\Project Data\<first_folder>\Project\<second_folder>\Engineering\Pic\
         $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        $final_folder = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $final_folder);
-        $target_dir = $upload_root . $final_folder;
-        $real_target_dir = realpath($target_dir);
+        $final_path = $upload_root . $first_folder . DIRECTORY_SEPARATOR . "Project" . DIRECTORY_SEPARATOR . $second_folder . DIRECTORY_SEPARATOR . "Engineering" . DIRECTORY_SEPARATOR . "Pic" . DIRECTORY_SEPARATOR;
+        
+        // ตรวจสอบ path
         $real_base = realpath($config['upload_directory']);
-
-        if ($final_folder === "") {
-            // ถ้าผู้ใช้ไม่ได้เลือกอะไรเลย ถือว่าอัปโหลดที่ root directory
-            $real_target_dir = realpath($upload_root);
-            $target_dir = $upload_root;
+        // สร้าง path หากไม่พบ
+        if (!is_dir($final_path)) {
+            mkdir($final_path, 0777, true);
         }
+        $real_target_dir = realpath($final_path);
 
         if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
-            $error = "โฟลเดอร์ไม่ถูกต้อง หรือไม่มีโฟลเดอร์นี้";
+            $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้";
         } else {
             if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
                 $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
@@ -39,11 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif) เท่านั้น";
                 } else {
                     $filename = basename($original_name);
-
-                    if (!is_dir($real_target_dir)) {
-                        mkdir($real_target_dir, 0777, true);
-                    }
-
                     $target = $real_target_dir . DIRECTORY_SEPARATOR . $filename;
 
                     // ป้องกันชื่อซ้ำ
@@ -53,8 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
+                        // บันทึก log: filename|timestamp|username|folder (folder ให้เก็บเป็นเส้นทาง relative ที่เลือก)
+                        $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
                         file_put_contents($config['upload_log'], 
-                            $filename . "|" . time() . "|" . $_SESSION['username'] . "|" . $final_folder . "\n", 
+                            $filename . "|" . time() . "|" . $_SESSION['username'] . "|" . $chosen_path . "\n", 
                             FILE_APPEND
                         );
                         $success = "อัพโหลดรูปภาพสำเร็จ";
@@ -76,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <title>Upload รูปภาพ</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="assets/css/style.css">
-<script src="assets/js/folder_checkbox.js"></script>
+<script src="assets/js/folder_two_steps.js"></script>
 </head>
 <body>
 <div class="container">
@@ -85,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <a href="dashboard.php">ย้อนกลับ</a> 
         <a href="logout.php">ออกจากระบบ</a>
     </div>
+
     <?php if (!empty($error)): ?>
         <div class="message" style="color:red;"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
     <?php endif; ?>
@@ -92,11 +92,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="message" style="color:green;"><?php echo htmlspecialchars($success, ENT_QUOTES, 'UTF-8'); ?></div>
     <?php endif; ?>
 
-    <button type="button" id="back-btn" style="display:none;">Back</button>
-    <div id="folder-container"></div>
+    <div id="step1-container">
+        <h3>เลือกโฟลเดอร์จาก D:\Project Data\</h3>
+        <!-- ที่นี่แสดง checkbox ของระดับแรก -->
+    </div>
+
+    <div id="step2-container" style="display:none;">
+        <h3>เลือกโฟลเดอร์จาก D:\Project Data\<folderแรก>\Project\</h3>
+        <!-- ที่นี่แสดง checkbox ของระดับสอง -->
+    </div>
+
+    <div id="final-container" style="display:none;">
+        <p>ไม่มีโฟลเดอร์ย่อยอีกแล้ว สามารถอัปโหลดไฟล์ได้</p>
+    </div>
 
     <form method="post" enctype="multipart/form-data" id="upload-form" style="margin-top:20px;">
-        <input type="hidden" name="final_folder" value="">
+        <input type="hidden" name="first_folder" value="">
+        <input type="hidden" name="second_folder" value="">
         <label>เลือกรูปภาพ:</label>
         <input type="file" name="image" accept="image/*">
         <button type="submit">อัพโหลด</button>
