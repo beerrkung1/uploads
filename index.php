@@ -4,8 +4,8 @@ require 'functions.php';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username']);
-    $password = trim($_POST['password']);
+    $username = isset($_POST['username']) ? trim($_POST['username']) : '';
+    $password = isset($_POST['password']) ? trim($_POST['password']) : '';
 
     if (login($username, $password)) {
         header('Location: dashboard.php');
@@ -38,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <button type="submit">เข้าสู่ระบบ</button>
         </form>
+        <p>ยังไม่มีบัญชี? <a href="register.php">ลงทะเบียน</a></p>
     </div>
 </body>
 </html>
