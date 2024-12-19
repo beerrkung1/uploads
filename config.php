@@ -1,9 +1,10 @@
-
 <?php
-// กำหนดค่า Username ที่อนุญาต
-define('ALLOWED_USERNAME', 'adminbpair');
-$original_password = "C0mp!exP@ssw0rd2024?";
-$hashed_password = password_hash($original_password, PASSWORD_BCRYPT);
-define('ALLOWED_PASSWORD_HASH', $hashed_password);
-
+// ชื่อผู้ใช้ รหัสผ่านที่กำหนดตายตัว (Hard-coded)
+// ในระบบจริงควรมีวิธีการเข้ารหัสรหัสผ่าน แต่ตัวอย่างนี้เพื่อความง่าย
+return [
+    'username' => 'admin',
+    'password' => '1234', 
+    'upload_directory' => 'D:\\uploads\\', // ระบุ path อัพโหลด
+    'upload_log' => __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.txt'
+];
 ?>

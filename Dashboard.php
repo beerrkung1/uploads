@@ -1,81 +1,65 @@
 <?php
-require 'functions.php';
+session_start();
+$config = include 'config.php';
 
-if (!isLoggedIn()) {
-    header('Location: index.php');
-    exit();
+// ตรวจสอบการล็อกอิน
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header("Location: login.php");
+    exit;
 }
 
-$username = $_SESSION['username'];
-$history = readJSON('history.json');
-$userHistory = [];
-
-// กรองประวัติสำหรับผู้ใช้ปัจจุบัน
-foreach ($history as $entry) {
-    if ($entry['username'] === $username) {
-        $userHistory[] = $entry;
+// อ่านไฟล์ log ประวัติการอัพโหลด
+$uploads = [];
+if (file_exists($config['upload_log'])) {
+    $fileContent = file_get_contents($config['upload_log']);
+    if ($fileContent) {
+        $lines = explode("\n", trim($fileContent));
+        foreach ($lines as $line) {
+            // รูปแบบการเก็บ: filename|timestamp
+            $parts = explode("|", $line);
+            if (count($parts) === 2) {
+                $uploads[] = [
+                    'filename' => $parts[0],
+                    'timestamp' => $parts[1]
+                ];
+            }
+        }
     }
 }
 
-// อ่านรายการโฟลเดอร์ที่มีอยู่ใน uploads/
-$folders = array_filter(glob('uploads/*'), 'is_dir');
-$folders = array_map(function($folder) {
-    return basename($folder);
-}, $folders);
-?>
+// เรียงลำดับตามเวลา (ล่าสุดอยู่บน)
+usort($uploads, function($a, $b) {
+    return $b['timestamp'] <=> $a['timestamp'];
+});
 
+?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <title>Dashboard</title>
-    <link rel="stylesheet" href="css/styles.css">
+<meta charset="UTF-8">
+<title>Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-    <div class="dashboard-container">
-        <h2>ยินดีต้อนรับ, <?php echo htmlspecialchars($username); ?></h2>
-        <a href="logout.php" class="logout-link">ออกจากระบบ</a>
-
-        <h3>อัปโหลดรูปภาพ</h3>
-        <form action="upload.php" method="POST" enctype="multipart/form-data">
-            <label for="folder">เลือกโฟลเดอร์:</label>
-            <select id="folder" name="folder" required>
-                <?php foreach ($folders as $folder): ?>
-                    <option value="<?php echo htmlspecialchars($folder); ?>"><?php echo htmlspecialchars($folder); ?></option>
-                <?php endforeach; ?>
-            </select>
-
-            <label for="image">เลือกไฟล์รูปภาพ:</label>
-            <input type="file" id="image" name="image" accept="image/*" required>
-
-            <button type="submit">อัปโหลด</button>
-        </form>
-
-        <h3>ประวัติการอัปโหลดของคุณ</h3>
-        <?php if (empty($userHistory)): ?>
-            <p>ยังไม่มีประวัติการอัปโหลด</p>
-        <?php else: ?>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ลำดับ</th>
-                        <th>วันที่และเวลา</th>
-                        <th>โฟลเดอร์</th>
-                        <th>ชื่อไฟล์</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($userHistory as $index => $entry): ?>
-                        <tr>
-                            <td><?php echo $index + 1; ?></td>
-                            <td><?php echo htmlspecialchars($entry['datetime']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['folder']); ?></td>
-                            <td><?php echo htmlspecialchars($entry['filename']); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php endif; ?>
-    </div>
+    <h1>Dashboard ประวัติการอัพโหลดรูปภาพ</h1>
+    <a href="upload.php">อัพโหลดรูปภาพใหม่</a> | 
+    <a href="logout.php">ออกจากระบบ</a>
+    <hr>
+    <h2>ประวัติการอัพโหลด</h2>
+    <?php if (empty($uploads)): ?>
+        <p>ยังไม่มีการอัพโหลด</p>
+    <?php else: ?>
+        <ul>
+            <?php foreach ($uploads as $up): ?>
+                <li>
+                    <strong><?php echo htmlspecialchars($up['filename']); ?></strong><br>
+                    อัพโหลดเมื่อ: <?php echo date("Y-m-d H:i:s", $up['timestamp']); ?><br>
+                    <img src="http://your-domain-or-ip/uploads/<?php echo rawurlencode($up['filename']); ?>" 
+                         alt="<?php echo htmlspecialchars($up['filename']); ?>" width="200">
+                </li>
+                <hr>
+            <?php endforeach; ?>
+        </ul>
+    <?php endif; ?>
 </body>
 </html>

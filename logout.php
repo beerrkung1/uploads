@@ -1,6 +1,5 @@
 <?php
-require 'functions.php';
+session_start();
 session_destroy();
-header('Location: index.php');
-exit();
-?>
+header("Location: login.php");
+exit;

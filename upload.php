@@ -1,76 +1,65 @@
 <?php
-require 'functions.php';
+session_start();
+$config = include 'config.php';
 
-if (!isLoggedIn()) {
-    header('Location: index.php');
-    exit();
+// ตรวจสอบการล็อกอิน
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header("Location: login.php");
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = $_SESSION['username'];
-    $folder = trim($_POST['folder']);
-
-    // ตรวจสอบว่าโฟลเดอร์ที่เลือกมีอยู่จริง
-    $uploadDir = 'uploads/' . $folder;
-    if (!is_dir($uploadDir)) {
-        die('โฟลเดอร์ไม่ถูกต้อง');
-    }
-
-    if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-        $fileTmpPath = $_FILES['image']['tmp_name'];
-        $fileName = basename($_FILES['image']['name']);
-        $fileSize = $_FILES['image']['size'];
-        $fileType = $_FILES['image']['type'];
-        $fileNameCmps = pathinfo($fileName);
-        $fileExtension = strtolower($fileNameCmps['extension']);
-
-        // ตรวจสอบนามสกุลไฟล์
-        $allowedfileExtensions = ['jpg', 'jpeg', 'png', 'gif'];
-        if (in_array($fileExtension, $allowedfileExtensions)) {
-            // ตรวจสอบ MIME type
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            $mimeType = finfo_file($finfo, $fileTmpPath);
-            finfo_close($finfo);
-
-            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif'];
-            if (!in_array($mimeType, $allowedMimeTypes)) {
-                die('ไฟล์ที่อัปโหลดไม่ใช่ไฟล์รูปภาพ');
-            }
-
-            // สร้างชื่อไฟล์ใหม่เพื่อหลีกเลี่ยงการชนกัน
-            $newFileName = uniqid() . '.' . $fileExtension;
-
-            $destPath = $uploadDir . '/' . $newFileName;
-
-            if (move_uploaded_file($fileTmpPath, $destPath)) {
-                // บันทึกประวัติการอัปโหลด
-                $history = readJSON('history.json');
-                $history[] = [
-                    'username' => $username,
-                    'datetime' => date('Y-m-d H:i:s'),
-                    'folder' => $folder,
-                    'filename' => $newFileName
-                ];
-                writeJSON('history.json', $history);
-
-                header('Location: dashboard.php');
-                exit();
-            } else {
-                $error = 'เกิดข้อผิดพลาดในการย้ายไฟล์';
-            }
+    if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
+        // ตรวจสอบชนิดไฟล์ภาพเบื้องต้น
+        $allowed = ['image/jpeg', 'image/png', 'image/gif'];
+        if (!in_array($_FILES['image']['type'], $allowed)) {
+            $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif) เท่านั้น";
         } else {
-            $error = 'นามสกุลไฟล์ไม่ถูกต้อง';
+            $filename = basename($_FILES['image']['name']);
+            $target = $config['upload_directory'] . $filename;
+
+            // ป้องกันชื่อซ้ำด้วยการเพิ่มเวลา unix time
+            if (file_exists($target)) {
+                $filename = time() . "_" . $filename;
+                $target = $config['upload_directory'] . $filename;
+            }
+
+            if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
+                // เขียน log
+                $logLine = $filename . "|" . time() . "\n";
+                file_put_contents($config['upload_log'], $logLine, FILE_APPEND);
+                $success = "อัพโหลดรูปภาพสำเร็จ";
+            } else {
+                $error = "ไม่สามารถอัพโหลดไฟล์ได้ กรุณาตรวจสอบสิทธิ์โฟลเดอร์";
+            }
         }
     } else {
-        $error = 'ไม่พบไฟล์ที่อัปโหลดหรือเกิดข้อผิดพลาดในการอัปโหลด';
+        $error = "กรุณาเลือกไฟล์รูปภาพ";
     }
-
-    // หากเกิดข้อผิดพลาด ให้แสดงข้อผิดพลาดและกลับไปยังหน้า Dashboard
-    if (isset($error)) {
-        echo "<script>alert('$error'); window.location.href='dashboard.php';</script>";
-    }
-} else {
-    header('Location: dashboard.php');
-    exit();
 }
 ?>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Upload รูปภาพ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <h1>อัพโหลดรูปภาพ</h1>
+    <a href="dashboard.php">ย้อนกลับ</a> | 
+    <a href="logout.php">ออกจากระบบ</a>
+    <hr>
+    <?php if (!empty($error)): ?>
+        <div style="color:red;"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
+    <?php endif; ?>
+    <?php if (!empty($success)): ?>
+        <div style="color:green;"><?php echo htmlspecialchars($success, ENT_QUOTES, 'UTF-8'); ?></div>
+    <?php endif; ?>
+    <form method="post" enctype="multipart/form-data">
+        <label>เลือกรูปภาพ:</label><br>
+        <input type="file" name="image" accept="image/*"><br><br>
+        <button type="submit">อัพโหลด</button>
+    </form>
+</body>
+</html>
