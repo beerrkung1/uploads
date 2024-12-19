@@ -1,10 +1,13 @@
 <?php
-// ชื่อผู้ใช้ รหัสผ่านที่กำหนดตายตัว (Hard-coded)
-// ในระบบจริงควรมีวิธีการเข้ารหัสรหัสผ่าน แต่ตัวอย่างนี้เพื่อความง่าย
 return [
     'username' => 'admin',
-    'password' => '1234', 
-    'upload_directory' => 'D:\\Prject Data\\', // ระบุ path อัพโหลด
+    // รหัสผ่านเดิม: 1234
+    // สร้าง hash ของรหัสผ่านด้วย password_hash ใน PHP CLI หรือ Code ข้างล่างนี้
+    // ตัวอย่างการสร้าง hash:
+    // <?php echo password_hash("1234", PASSWORD_DEFAULT);
+    // สมมุติได้ค่า: $2y$10$wYV9Ztuh...........
+    'password_hash' => '$2y$10$wYV9Ztuh67aQ7MZOnG3S3udz9GwnHBgHVu2Zr5yzsAQy7K.1YZ90m',
+
+    'upload_directory' => 'D:\\uploads\\', 
     'upload_log' => __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.txt'
 ];
-?>
