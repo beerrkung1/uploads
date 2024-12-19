@@ -1,0 +1,22 @@
+[
+    {
+        "username": "admin1",
+        "passwordHash": "$2y$12$/xpWjB7F0TstrByTkr165etDqLpS9P0i/gUa65mrJ91DEUK46s0SS"
+    },
+    {
+        "username": "admin2",
+        "passwordHash": "$2y$10$7QJ8KfYV1fsbw1ZfbX3OYePaWxn96p36S1Z4K5Q6hGqTZ9mFf4UeZ"
+    },
+    {
+        "username": "admin3",
+        "passwordHash": "$2y$10$H9NRb9xJ9bQeYhV5j1kGeuW8QHfM5GxN3tLqA/2eUR3k6dX/1nZgX"
+    },
+    {
+        "username": "admin4",
+        "passwordHash": "$2y$10$I1NRb9xJ9bQeYhV5j1kGeuW8QHfM5GxN3tLqA/2eUR3k6dX/1nZgY"
+    },
+    {
+        "username": "admin5",
+        "passwordHash": "$2y$10$J2NRb9xJ9bQeYhV5j1kGeuW8QHfM5GxN3tLqA/2eUR3k6dX/1nZgZ"
+    }
+]
