@@ -1,7 +1,6 @@
 <?php
-session_start();
-session_unset();
+require 'functions.php';
 session_destroy();
-header("Location: login.php");
-exit(); //test1234
+header('Location: index.php');
+exit();
 ?>
