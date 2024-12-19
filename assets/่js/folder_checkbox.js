@@ -1,34 +1,30 @@
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM Loaded, initializing folder structure...');
     const folderContainer = document.getElementById('folder-container');
     const backBtn = document.getElementById('back-btn');
     let currentPath = "";
 
     folderContainer.addEventListener('change', async (e) => {
         if (e.target.classList.contains('folder-checkbox')) {
+            // เมื่อเลือกโฟลเดอร์ ให้เจาะลึกลงไป
             const chosenFolder = e.target.value;
             currentPath = (currentPath ? currentPath + "\\" : "") + chosenFolder;
-            console.log('Chosen folder:', currentPath);
             let subfolders = await loadSubFolders(currentPath);
-            console.log('Subfolders of', currentPath, ':', subfolders);
             renderFolders(subfolders);
             backBtn.style.display = currentPath ? 'inline-block' : 'none';
         }
     });
 
     backBtn.addEventListener('click', async () => {
+        // ถอยกลับขึ้น 1 ระดับ
         let parts = currentPath.split('\\');
         parts.pop();
         currentPath = parts.join('\\');
-        console.log('Go back, current path:', currentPath);
         let subfolders = await loadSubFolders(currentPath);
-        console.log('Subfolders of', currentPath, ':', subfolders);
         renderFolders(subfolders);
         backBtn.style.display = currentPath ? 'inline-block' : 'none';
     });
 
     async function loadSubFolders(path) {
-        console.log('Loading subfolders for path:', path);
         const formData = new FormData();
         formData.append('path', path);
         let response = await fetch('list_folders.php', {
@@ -37,19 +33,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (response.ok) {
             let data = await response.json();
-            if (data.error) {
-                console.error('Error from list_folders.php:', data.error, data);
-            }
             return data.folders || [];
         } else {
-            console.error('Failed to load subfolders, status:', response.status);
+            return [];
         }
-        return [];
     }
 
     function renderFolders(folders) {
         folderContainer.innerHTML = "";
         if (folders.length > 0) {
+            // มี subfolder ให้เลือก
             folders.forEach(folder => {
                 const label = document.createElement('label');
                 label.style.display = 'block';
@@ -62,17 +55,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 folderContainer.appendChild(label);
             });
         } else {
+            // ไม่มี subfolder เพิ่มแล้ว
             const p = document.createElement('p');
-            p.textContent = "ไม่มีโฟลเดอร์ย่อย สามารถอัพโหลดไฟล์ได้";
+            p.textContent = "ไม่มีโฟลเดอร์ย่อย สามารถอัพโหลดไฟล์ในโฟลเดอร์นี้";
             folderContainer.appendChild(p);
         }
         document.querySelector('input[name="final_folder"]').value = currentPath;
     }
 
+    // โหลดโฟลเดอร์ระดับแรก
     (async function init() {
-        console.log('Init load root folders');
         let rootFolders = await loadSubFolders("");
-        console.log('Root folders:', rootFolders);
         renderFolders(rootFolders);
         backBtn.style.display = 'none';
     })();

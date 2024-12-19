@@ -13,11 +13,14 @@ if (file_exists($config['upload_log'])) {
     if ($fileContent) {
         $lines = explode("\n", trim($fileContent));
         foreach ($lines as $line) {
+            // รูปแบบ: filename|timestamp|username|folder
             $parts = explode("|", $line);
-            if (count($parts) === 2) {
+            if (count($parts) === 4) {
                 $uploads[] = [
                     'filename' => $parts[0],
-                    'timestamp' => $parts[1]
+                    'timestamp' => $parts[1],
+                    'username' => $parts[2],
+                    'folder' => $parts[3]
                 ];
             }
         }
@@ -50,10 +53,16 @@ usort($uploads, function($a, $b) {
         <ul>
             <?php foreach ($uploads as $up): ?>
                 <li>
-                    <strong><?php echo htmlspecialchars($up['filename']); ?></strong><br>
-                    อัพโหลดเมื่อ: <?php echo date("Y-m-d H:i:s", $up['timestamp']); ?><br>
-                    <img src="http://your-domain-or-ip/uploads/<?php echo rawurlencode($up['filename']); ?>" 
-                         alt="<?php echo htmlspecialchars($up['filename']); ?>">
+                    <strong>ไฟล์:</strong> <?php echo htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <strong>โฟลเดอร์:</strong> <?php echo htmlspecialchars($up['folder'], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <strong>อัพโหลดโดย:</strong> <?php echo htmlspecialchars($up['username'], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <strong>อัพโหลดเมื่อ:</strong> <?php echo date("Y-m-d H:i:s", $up['timestamp']); ?><br>
+                    <!-- การแสดงรูปภาพขึ้นอยู่กับการตั้งค่า Virtual Directory ใน IIS 
+                         เช่นถ้าตั้ง alias http://your-domain/ProjectData/ ชี้ไปที่ D:\Project Data\
+                         ก็สามารถเรียกดูได้แบบนี้ -->
+                    <img src="http://your-domain/ProjectData/<?php echo rawurlencode(str_replace('\\','/',$up['folder'] . '/' . $up['filename'])); ?>" 
+                         alt="<?php echo htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8'); ?>"
+                         style="max-width:200px;">
                 </li>
             <?php endforeach; ?>
         </ul>
