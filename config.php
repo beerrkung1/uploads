@@ -4,7 +4,7 @@
 return [
     'username' => 'admin',
     'password' => '1234', 
-    'upload_directory' => 'D:\\uploads\\', // ระบุ path อัพโหลด
+    'upload_directory' => 'D:\\Prject Data\\', // ระบุ path อัพโหลด
     'upload_log' => __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.txt'
 ];
 ?>
