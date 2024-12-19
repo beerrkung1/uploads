@@ -21,20 +21,30 @@ if (is_dir($upload_root)) {
     }
 }
 
-// เมื่อ submit form อัพโหลด
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $final_folder = $_POST['final_folder'] ?? '';
 
     if (strpos($final_folder, '..') !== false) {
         $error = "โฟลเดอร์ไม่ถูกต้อง";
     } else {
-        $target_dir = $upload_root . str_replace('/', DIRECTORY_SEPARATOR, str_replace('\\', DIRECTORY_SEPARATOR, $final_folder)) . DIRECTORY_SEPARATOR;
+        // แปลงสแลชใน $final_folder ให้เป็น DIRECTORY_SEPARATOR เช่นกัน
+        $final_folder = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $final_folder);
+        
+        $target_dir = $upload_root . $final_folder;
         $real_target_dir = realpath($target_dir);
         $real_base = realpath($config['upload_directory']);
 
+        // หากไม่มี final_folder แสดงว่าเลือกได้แค่ระดับแรก (หรือยังไม่ได้เลือก subfolder เพิ่ม)
+        // ในกรณีที่ final_folder ว่าง ก็ให้ target_dir เป็น upload_root + "" เท่ากับ root_dir เลย
+        if (empty($final_folder)) {
+            $target_dir = $upload_root; 
+            $real_target_dir = realpath($upload_root);
+        }
+
         if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
-            $error = "โฟลเดอร์ไม่ถูกต้อง";
+            $error = "โฟลเดอร์ไม่ถูกต้อง หรือไม่มีโฟลเดอร์นี้";
         } else {
+            // กระบวนการอัปโหลดไฟล์
             if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
                 $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
                 $file_type = mime_content_type($_FILES['image']['tmp_name']);
@@ -53,16 +63,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $target = $real_target_dir . DIRECTORY_SEPARATOR . $filename;
 
-                    // ป้องกันชื่อซ้ำ
                     if (file_exists($target)) {
                         $filename = time() . "_" . $filename;
                         $target = $real_target_dir . DIRECTORY_SEPARATOR . $filename;
                     }
 
                     if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
-                        // บันทึก log: filename|timestamp|username|folder
-                        $logLine = $filename . "|" . time() . "|" . $_SESSION['username'] . "|" . $final_folder . "\n";
-                        file_put_contents($config['upload_log'], $logLine, FILE_APPEND);
+                        // เก็บ log
+                        // เก็บ final_folder โดยใช้ path แบบ relative ที่ผู้ใช้เลือก (ก่อนแปลงก็ได้)
+                        // ใน log เราอาจเก็บแบบใช้ "/" หรือ "\" ก็ได้ แต่ควรสม่ำเสมอ
+                        file_put_contents($config['upload_log'], 
+                            $filename . "|" . time() . "|" . $_SESSION['username'] . "|" . $final_folder . "\n", 
+                            FILE_APPEND
+                        );
                         $success = "อัพโหลดรูปภาพสำเร็จ";
                     } else {
                         $error = "ไม่สามารถอัพโหลดไฟล์ได้ กรุณาตรวจสอบสิทธิ์โฟลเดอร์";
@@ -103,12 +116,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <select name="folder_select[]" class="folder-select" required>
                 <option value="">-- กรุณาเลือกโฟลเดอร์ --</option>
                 <?php foreach ($root_dirs as $folder): ?>
-                    <option value="<?php echo htmlspecialchars($folder, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($folder, ENT_QUOTES, 'UTF-8'); ?></option>
+                    <option value="<?php echo htmlspecialchars($folder, ENT_QUOTES, 'UTF-8'); ?>">
+                        <?php echo htmlspecialchars($folder, ENT_QUOTES, 'UTF-8'); ?>
+                    </option>
                 <?php endforeach; ?>
             </select>
         </div>
 
-        <!-- Hidden input สำหรับเก็บ path สุดท้าย -->
         <input type="hidden" name="final_folder" value="">
 
         <label>เลือกรูปภาพ:</label>

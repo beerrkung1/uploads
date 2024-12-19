@@ -2,7 +2,6 @@
 session_start();
 $config = include 'config.php';
 
-// ตรวจสอบการล็อกอิน
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     http_response_code(401);
     echo json_encode(["error" => "Unauthorized"]);
@@ -19,19 +18,22 @@ if (strpos($relative_path, '..') !== false) {
 }
 
 $base_dir = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-$target_dir = $base_dir . str_replace('/', DIRECTORY_SEPARATOR, str_replace('\\', DIRECTORY_SEPARATOR, $relative_path));
 
-// ตรวจสอบว่าเป็นไดเรคทอรีจริงและอยู่ภายใต้ base_dir
-$real_target = realpath($target_dir);
+// แปลงสแลชทั้งหมดให้เป็น DIRECTORY_SEPARATOR
+$relative_path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relative_path);
+$target_dir = $base_dir . $relative_path;
+
+// ตรวจสอบ directory
 $real_base = realpath($config['upload_directory']);
+$real_target = realpath($target_dir);
 
 if ($real_target === false || strpos($real_target, $real_base) !== 0) {
+    // ไม่พบโฟลเดอร์ หรือ path ไม่ถูกต้อง
     http_response_code(400);
     echo json_encode(["error" => "Invalid directory"]);
     exit;
 }
 
-// สแกน subfolder
 $dirs = [];
 $scan = scandir($real_target);
 foreach ($scan as $d) {
@@ -44,4 +46,3 @@ foreach ($scan as $d) {
 }
 
 echo json_encode(["folders" => $dirs]);
-?>
