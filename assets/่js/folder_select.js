@@ -1,10 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('folder-select-container');
 
-    // เมื่อมีการเปลี่ยนค่าใน select ใดๆ
     container.addEventListener('change', async (e) => {
         if (e.target.classList.contains('folder-select')) {
-            // ลบ select ที่อยู่ถัดจาก select ปัจจุบันออกทั้งหมดก่อน (กรณีเปลี่ยน folder ใหม่)
+            // ลบ select ด้านล่างทั้งหมดออกก่อน (ในกรณีที่ผู้ใช้เลือกโฟลเดอร์ใหม่)
             let next = e.target.nextElementSibling;
             while (next) {
                 const toRemove = next;
@@ -17,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const selectedPath = getSelectedPath();
             if (!selectedPath) return;
 
-            // เรียก AJAX เพื่อดึง subfolder ของ path ปัจจุบัน
             const formData = new FormData();
             formData.append('path', selectedPath);
 
@@ -25,11 +23,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: formData
             });
-            
+
             if (response.ok) {
                 let data = await response.json();
                 if (data.folders && data.folders.length > 0) {
-                    // สร้าง select ใหม่ให้เลือก subfolder
+                    // มีซับโฟลเดอร์ สร้าง select ใหม่
                     const newSelect = document.createElement('select');
                     newSelect.classList.add('folder-select');
                     newSelect.name = "folder_select[]";
@@ -52,21 +50,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function getSelectedPath() {
-        // รวมค่าของ select ทุกตัวเพื่อสร้าง path ย่อย
+        // รวมค่าของ select ทั้งหมด
         const selects = container.querySelectorAll('.folder-select');
         let pathParts = [];
         for (const s of selects) {
             if (s.value) {
                 pathParts.push(s.value);
             } else {
-                // ถ้ายังไม่ได้เลือกหรือ select ไม่มีค่า ให้หยุด
+                // ถ้า select ปัจจุบันยังไม่ได้เลือกค่า ให้หยุด
                 break;
             }
         }
+        // ใช้ backslash (Windows) เชื่อม path
         return pathParts.join('\\');
     }
 
-    // เมื่อ submit form ให้บันทึก path ลงใน hidden input
+    // เก็บค่าที่เลือกสุดท้ายก่อน submit
     const form = document.querySelector('form#upload-form');
     form.addEventListener('submit', () => {
         const hiddenInput = form.querySelector('input[name="final_folder"]');
