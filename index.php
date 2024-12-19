@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = isset($_POST['password']) ? trim($_POST['password']) : '';
 
     if (login($username, $password)) {
-        header('Location: dashboard.php');
+        header('Location: Dashboard.php');
         exit();
     } else {
         $error = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <button type="submit">เข้าสู่ระบบ</button>
         </form>
-        <p>ยังไม่มีบัญชี? <a href="register.php">ลงทะเบียน</a></p>
+      
     </div>
 </body>
 </html>
