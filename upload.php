@@ -19,7 +19,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $final_path = $upload_root . $first_folder . DIRECTORY_SEPARATOR . "Project" . DIRECTORY_SEPARATOR . $second_folder . DIRECTORY_SEPARATOR . "Engineering" . DIRECTORY_SEPARATOR . "Pic" . DIRECTORY_SEPARATOR;
 
-        // สร้าง path หากไม่มี
         if (!is_dir($final_path)) {
             mkdir($final_path, 0777, true);
         }
@@ -66,6 +65,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// โหลดโฟลเดอร์ระดับแรก (D:\Project Data\) เพื่อนำมาแสดงใน first_select
+// ทำในฝั่ง PHP เลยเพื่อให้ dropdown แรกแสดงทันที
+$upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+$first_level_folders = [];
+if (is_dir($upload_root)) {
+    $dirs = scandir($upload_root);
+    foreach ($dirs as $d) {
+        if ($d !== '.' && $d !== '..') {
+            $path = $upload_root . $d;
+            if (is_dir($path)) {
+                $first_level_folders[] = $d;
+            }
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -90,17 +105,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="message" style="color:green;"><?php echo htmlspecialchars($success, ENT_QUOTES, 'UTF-8'); ?></div>
     <?php endif; ?>
 
-    <div id="step1-container">
-        <h3>เลือกโฟลเดอร์จาก D:\Project Data\</h3>
+    <div>
+        <label>โฟลเดอร์ระดับแรก (D:\Project Data\):</label>
+        <select id="first_select">
+            <option value="">-- กรุณาเลือกโฟลเดอร์ --</option>
+            <?php if (!empty($first_level_folders)): ?>
+                <?php foreach ($first_level_folders as $f): ?>
+                    <option value="<?php echo htmlspecialchars($f, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($f, ENT_QUOTES, 'UTF-8'); ?></option>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <option value="">ไม่มีโฟลเดอร์</option>
+            <?php endif; ?>
+        </select>
     </div>
 
-    <div id="step2-container" style="display:none;">
-        <h3>เลือกโฟลเดอร์จาก D:\Project Data\<folderแรก>\Project\</h3>
+    <div style="margin-top:10px;">
+        <label>โฟลเดอร์ระดับสอง (D:\Project Data\<folder>\Project\):</label>
+        <select id="second_select" disabled>
+            <option value="">-- กรุณาเลือกโฟลเดอร์ (หลังเลือกอันแรก) --</option>
+        </select>
     </div>
 
-    <div id="final-container" style="display:none;">
-        <p>ไม่มีโฟลเดอร์ย่อยอีกแล้ว สามารถอัปโหลดไฟล์ได้</p>
-    </div>
+    <div id="selected-info" style="margin-top:10px; color:blue;"></div>
 
     <form method="post" enctype="multipart/form-data" id="upload-form" style="margin-top:20px;">
         <input type="hidden" name="first_folder" value="">
@@ -113,49 +139,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const step1Container = document.getElementById('step1-container');
-    const step2Container = document.getElementById('step2-container');
-    const finalContainer = document.getElementById('final-container');
-
+    const firstSelect = document.getElementById('first_select');
+    const secondSelect = document.getElementById('second_select');
+    const selectedInfo = document.getElementById('selected-info');
     const firstFolderInput = document.querySelector('input[name="first_folder"]');
     const secondFolderInput = document.querySelector('input[name="second_folder"]');
 
-    // โหลดโฟลเดอร์ระดับแรกจาก D:\Project Data\
-    loadSubFolders("").then(folders => {
-        renderCheckboxes(step1Container, folders, 'first');
+    firstSelect.addEventListener('change', async () => {
+        const chosenFirst = firstSelect.value;
+        if (!chosenFirst) {
+            // ไม่มีการเลือก
+            secondSelect.innerHTML = '<option value="">-- กรุณาเลือกโฟลเดอร์ (หลังเลือกอันแรก) --</option>';
+            secondSelect.disabled = true;
+            selectedInfo.textContent = "";
+            firstFolderInput.value = "";
+            secondFolderInput.value = "";
+            return;
+        }
+
+        firstFolderInput.value = chosenFirst;
+        // Load subfolder from D:\Project Data\<chosenFirst>\Project\
+        const path = chosenFirst + "\\Project";
+        let subFolders = await loadSubFolders(path);
+        renderSecondLevel(subFolders);
+
+        // เมื่อเลือกโฟลเดอร์แรกแล้ว แสดงผลการเลือกบางส่วน
+        updateSelectedInfo();
     });
 
-    // เมื่อเลือกโฟลเดอร์ระดับแรก
-    step1Container.addEventListener('change', async (e) => {
-        if (e.target.classList.contains('folder-checkbox-first')) {
-            const chosen = e.target.value;
-            firstFolderInput.value = chosen;
-
-            // โหลดโฟลเดอร์ระดับสองจาก D:\Project Data\<first_folder>\Project\
-            const path = chosen + "\\Project";
-            let subFolders = await loadSubFolders(path);
-
-            // ซ่อน step1 แสดง step2
-            step1Container.innerHTML = "";
-            step1Container.style.display = "none";
-
-            step2Container.style.display = "block";
-            renderCheckboxes(step2Container, subFolders, 'second');
-        }
-    });
-
-    // เมื่อเลือกโฟลเดอร์ระดับสอง
-    step2Container.addEventListener('change', (e) => {
-        if (e.target.classList.contains('folder-checkbox-second')) {
-            const chosen = e.target.value;
-            secondFolderInput.value = chosen;
-
-            // ไม่มี subfolder ต่อไป ให้แสดง finalContainer
-            step2Container.innerHTML = "";
-            step2Container.style.display = "none";
-
-            finalContainer.style.display = "block";
-        }
+    secondSelect.addEventListener('change', () => {
+        const chosenSecond = secondSelect.value;
+        secondFolderInput.value = chosenSecond;
+        updateSelectedInfo();
     });
 
     async function loadSubFolders(path) {
@@ -172,22 +187,40 @@ document.addEventListener('DOMContentLoaded', () => {
         return [];
     }
 
-    function renderCheckboxes(container, folders, level) {
-        container.innerHTML = "";
+    function renderSecondLevel(folders) {
+        secondSelect.innerHTML = "";
         if (folders.length > 0) {
-            folders.forEach(folder => {
-                const label = document.createElement('label');
-                label.style.display = 'block';
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.value = folder;
-                checkbox.classList.add(`folder-checkbox-${level}`);
-                label.appendChild(checkbox);
-                label.appendChild(document.createTextNode(" " + folder));
-                container.appendChild(label);
+            let defaultOpt = document.createElement('option');
+            defaultOpt.value = "";
+            defaultOpt.textContent = "-- กรุณาเลือกโฟลเดอร์ --";
+            secondSelect.appendChild(defaultOpt);
+
+            folders.forEach(f => {
+                let opt = document.createElement('option');
+                opt.value = f;
+                opt.textContent = f;
+                secondSelect.appendChild(opt);
             });
+            secondSelect.disabled = false;
         } else {
-            container.innerHTML = "<p>ไม่มีโฟลเดอร์ในระดับนี้</p>";
+            let noOpt = document.createElement('option');
+            noOpt.value = "";
+            noOpt.textContent = "ไม่มีโฟลเดอร์";
+            secondSelect.appendChild(noOpt);
+            secondSelect.disabled = true;
+        }
+    }
+
+    function updateSelectedInfo() {
+        const f1 = firstFolderInput.value;
+        const f2 = secondFolderInput.value;
+
+        if (f1 && f2) {
+            selectedInfo.textContent = "คุณเลือก: " + f1 + " / " + f2;
+        } else if (f1 && !f2) {
+            selectedInfo.textContent = "คุณเลือก: " + f1;
+        } else {
+            selectedInfo.textContent = "";
         }
     }
 });
