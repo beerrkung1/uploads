@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // เมื่อเลือกโฟลเดอร์ระดับแรก
     step1Container.addEventListener('change', async (e) => {
         if (e.target.classList.contains('folder-checkbox-first')) {
-            // ได้โฟลเดอร์แรกแล้ว
             const chosen = e.target.value;
             firstFolderInput.value = chosen;
 
@@ -74,7 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.appendChild(label);
             });
         } else {
-            // ไม่มีโฟลเดอร์ย่อยแล้ว กรณีนี้อาจใช้ finalContainer ได้เลย
             container.innerHTML = "<p>ไม่มีโฟลเดอร์ในระดับนี้</p>";
         }
     }
