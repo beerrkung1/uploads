@@ -122,7 +122,7 @@ if (is_dir($upload_root)) {
     <div style="margin-top:10px;">
         <label>ชื่อ Project:</label>
         <select id="second_select" disabled>
-            <option value="">-- กรุณาเลือกโฟลเดอร์ (หลังเลือกอันแรก) --</option>
+            <option value="">-กรุณาเลือก Project-</option>
         </select>
     </div>
 
