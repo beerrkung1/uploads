@@ -57,12 +57,10 @@ usort($uploads, function($a, $b) {
                     <strong>โฟลเดอร์:</strong> <?php echo htmlspecialchars($up['folder'], ENT_QUOTES, 'UTF-8'); ?><br>
                     <strong>อัพโหลดโดย:</strong> <?php echo htmlspecialchars($up['username'], ENT_QUOTES, 'UTF-8'); ?><br>
                     <strong>อัพโหลดเมื่อ:</strong> <?php echo date("Y-m-d H:i:s", $up['timestamp']); ?><br>
-                    <!-- การแสดงรูปภาพขึ้นอยู่กับการตั้งค่า Virtual Directory ใน IIS 
-                         เช่นถ้าตั้ง alias http://your-domain/ProjectData/ ชี้ไปที่ D:\Project Data\
-                         ก็สามารถเรียกดูได้แบบนี้ -->
-                    <img src="http://your-domain/ProjectData/<?php echo rawurlencode(str_replace('\\','/',$up['folder'] . '/' . $up['filename'])); ?>" 
+                    <!-- หากต้องการแสดงรูปจาก Virtual Directory เช่น http://your-domain/ProjectData/ -->
+                    <!-- <img src="http://your-domain/ProjectData/<?php echo rawurlencode(str_replace('\\','/',$up['folder'] . '/' . $up['filename'])); ?>" 
                          alt="<?php echo htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8'); ?>"
-                         style="max-width:200px;">
+                         style="max-width:200px;"> -->
                 </li>
             <?php endforeach; ?>
         </ul>
