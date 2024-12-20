@@ -4,6 +4,7 @@ $config = include 'config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+// ตรวจสอบการล็อกอิน
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     http_response_code(401);
     echo json_encode(["error" => "Unauthorized"]);
@@ -37,9 +38,15 @@ foreach ($scan as $d) {
     if ($d !== '.' && $d !== '..') {
         $full_path = $real_target . DIRECTORY_SEPARATOR . $d;
         if (is_dir($full_path)) {
-            $dirs[] = $d;
+            $dirs[$d] = filemtime($full_path);
         }
     }
 }
 
-echo json_encode(["folders" => $dirs]);
+// เรียงลำดับโฟลเดอร์จากใหม่ไปเก่า ตาม filemtime
+arsort($dirs); // เรียงโดย key คือชื่อโฟลเดอร์, value คือ time
+
+$sorted_folders = array_keys($dirs);
+
+echo json_encode(["folders" => $sorted_folders]);
+?>
