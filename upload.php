@@ -7,7 +7,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit;
 }
 
-// เมื่ออัปโหลด
+// เมื่ออัปโหลดไฟล์
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first_folder = $_POST['first_folder'] ?? '';
     $second_folder = $_POST['second_folder'] ?? '';
@@ -18,13 +18,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // final path: D:\Project Data\<first_folder>\Project\<second_folder>\Engineering\Pic\
         $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $final_path = $upload_root . $first_folder . DIRECTORY_SEPARATOR . "Project" . DIRECTORY_SEPARATOR . $second_folder . DIRECTORY_SEPARATOR . "Engineering" . DIRECTORY_SEPARATOR . "Pic" . DIRECTORY_SEPARATOR;
-        
-        // ตรวจสอบ path
-        $real_base = realpath($config['upload_directory']);
-        // สร้าง path หากไม่พบ
+
+        // สร้าง path หากไม่มี
         if (!is_dir($final_path)) {
             mkdir($final_path, 0777, true);
         }
+
+        $real_base = realpath($config['upload_directory']);
         $real_target_dir = realpath($final_path);
 
         if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
@@ -50,7 +50,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
-                        // บันทึก log: filename|timestamp|username|folder (folder ให้เก็บเป็นเส้นทาง relative ที่เลือก)
                         $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
                         file_put_contents($config['upload_log'], 
                             $filename . "|" . time() . "|" . $_SESSION['username'] . "|" . $chosen_path . "\n", 
@@ -94,12 +93,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div id="step1-container">
         <h3>เลือกโฟลเดอร์จาก D:\Project Data\</h3>
-        <!-- ที่นี่แสดง checkbox ของระดับแรก -->
     </div>
 
     <div id="step2-container" style="display:none;">
         <h3>เลือกโฟลเดอร์จาก D:\Project Data\<folderแรก>\Project\</h3>
-        <!-- ที่นี่แสดง checkbox ของระดับสอง -->
     </div>
 
     <div id="final-container" style="display:none;">
