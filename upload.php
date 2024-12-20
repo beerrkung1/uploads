@@ -106,7 +106,7 @@ if (is_dir($upload_root)) {
     <?php endif; ?>
 
     <div>
-        <label>โฟลเดอร์ระดับแรก (D:\Project Data\):</label>
+        <label>เลือกปี:</label>
         <select id="first_select">
             <option value="">-- กรุณาเลือกโฟลเดอร์ --</option>
             <?php if (!empty($first_level_folders)): ?>
@@ -120,7 +120,7 @@ if (is_dir($upload_root)) {
     </div>
 
     <div style="margin-top:10px;">
-        <label>โฟลเดอร์ระดับสอง (D:\Project Data\<folder>\Project\):</label>
+        <label>ชื่อ Project:</label>
         <select id="second_select" disabled>
             <option value="">-- กรุณาเลือกโฟลเดอร์ (หลังเลือกอันแรก) --</option>
         </select>
