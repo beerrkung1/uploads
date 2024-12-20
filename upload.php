@@ -7,11 +7,99 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit;
 }
 
+$error = "";
+$success = "";
+
 // เมื่ออัปโหลดไฟล์
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // ... (โค้ดอัปโหลดเหมือนเดิม)
+    $first_folder = $_POST['first_folder'] ?? '';
+    $second_folder = $_POST['second_folder'] ?? '';
+
+    if (strpos($first_folder, '..') !== false || strpos($second_folder, '..') !== false) {
+        $error = "โฟลเดอร์ไม่ถูกต้อง";
+    } else {
+        // final path: D:\Project Data\<first_folder>\Project\<second_folder>\Engineering\Pic\
+        $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $final_path = $upload_root . $first_folder . DIRECTORY_SEPARATOR . "Project" . DIRECTORY_SEPARATOR . $second_folder . DIRECTORY_SEPARATOR . "Engineering" . DIRECTORY_SEPARATOR . "Pic" . DIRECTORY_SEPARATOR;
+
+        if (!is_dir($final_path)) {
+            mkdir($final_path, 0777, true);
+        }
+
+        $real_base = realpath($config['upload_directory']);
+        $real_target_dir = realpath($final_path);
+
+        if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
+            $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้";
+        } else {
+            if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
+                $file_type = mime_content_type($_FILES['image']['tmp_name']);
+                $original_name = $_FILES['image']['name'];
+                $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+                $allowed_ext = ['jpg','jpeg','png','gif'];
+
+                if (!in_array($extension, $allowed_ext) || !in_array($file_type, $allowed_types)) {
+                    $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif) เท่านั้น";
+                } else {
+                    // เริ่มการตั้งชื่อไฟล์ใหม่
+                    $username = $_SESSION['username'];
+                    $today = date("Ymd"); // ปีเดือนวัน
+                    $count = 0; 
+                    
+                    // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
+                    if (file_exists($config['upload_log'])) {
+                        $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                        foreach ($log_lines as $line) {
+                            // รูปแบบ log: filename|timestamp|username|folder
+                            $parts = explode("|", $line);
+                            if (count($parts) === 4) {
+                                $log_filename = $parts[0];
+                                $log_timestamp = $parts[1];
+                                $log_user = $parts[2];
+                                $log_date = date("Ymd", $log_timestamp);
+                                if ($log_user === $username && $log_date === $today) {
+                                    $count++;
+                                }
+                            }
+                        }
+                    }
+
+                    // เลขลำดับถัดไป
+                    $count = $count + 1;
+                    $seq = str_pad($count, 3, "0", STR_PAD_LEFT); // ###
+
+                    // ตั้งชื่อไฟล์ตาม pattern: YYYYMMDD-username-###.extension
+                    $new_filename = $today . "-" . $username . "-" . $seq . "." . $extension;
+                    $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+
+                    // หากบังเอิญมีชื่อซ้ำ วนหาชื่อใหม่ (โอกาสน้อยมาก)
+                    while (file_exists($target)) {
+                        $count++;
+                        $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
+                        $new_filename = $today . "-" . $username . "-" . $seq . "." . $extension;
+                        $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+                    }
+
+                    if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
+                        $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
+                        file_put_contents($config['upload_log'], 
+                            $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
+                            FILE_APPEND
+                        );
+                        $success = "อัพโหลดรูปภาพสำเร็จ";
+                    } else {
+                        $error = "ไม่สามารถอัพโหลดไฟล์ได้ กรุณาตรวจสอบสิทธิ์โฟลเดอร์";
+                    }
+                }
+            } else {
+                $error = "กรุณาเลือกไฟล์รูปภาพ";
+            }
+        }
+    }
 }
 
+// โหลดโฟลเดอร์ระดับแรกจาก D:\Project Data\ และเรียงจากใหม่ไปเก่า
 $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 $first_level_folders = [];
 if (is_dir($upload_root)) {
@@ -96,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
     firstSelect.addEventListener('change', async () => {
         const chosenFirst = firstSelect.value;
         if (!chosenFirst) {
-            secondSelect.innerHTML = '<option value="">-- กรุณาเลือกโฟลเดอร์ (หลังเลือกอันแรก) --</option>';
+            secondSelect.innerHTML = '<option value="">-กรุณาเลือกProject-</option>';
             secondSelect.disabled = true;
             selectedInfo.textContent = "";
             firstFolderInput.value = "";
@@ -136,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (folders.length > 0) {
             let defaultOpt = document.createElement('option');
             defaultOpt.value = "";
-            defaultOpt.textContent = "-- กรุณาเลือกโฟลเดอร์ --";
+            defaultOpt.textContent = "-กรุณาเลือกProject-";
             secondSelect.appendChild(defaultOpt);
 
             folders.forEach(f => {
