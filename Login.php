@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($user === $config['username'] && password_verify($pass, $config['password_hash'])) {
         $_SESSION['logged_in'] = true;
+        $_SESSION['username'] = $user;
         header("Location: dashboard.php");
         exit;
     } else {
@@ -27,20 +28,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <title>Login</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="assets/css/style.css">
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const form = document.querySelector('form');
-  form.addEventListener('submit', e => {
-    // Frontend validation
-    const username = form.querySelector('input[name="username"]').value.trim();
-    const password = form.querySelector('input[name="password"]').value.trim();
-    if (!username || !password) {
-      alert('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
-      e.preventDefault();
-    }
-  });
-});
-</script>
 </head>
 <body>
 <div class="container">
