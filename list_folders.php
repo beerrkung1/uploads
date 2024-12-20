@@ -12,7 +12,6 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 
 $relative_path = $_POST['path'] ?? '';
 
-// ป้องกัน Path Traversal
 if (strpos($relative_path, '..') !== false) {
     http_response_code(400);
     echo json_encode(["error" => "Invalid path"]);
