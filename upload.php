@@ -2,6 +2,7 @@
 session_start();
 $config = include 'config.php';
 
+// ตรวจสอบสถานะการล็อกอิน
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     header("Location: login.php");
     exit;
@@ -10,18 +11,30 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 $error = "";
 $success = "";
 
-// เมื่ออัปโหลดไฟล์
+// เมื่อมีการส่งข้อมูลแบบ POST (อัปโหลดไฟล์)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first_folder = $_POST['first_folder'] ?? '';
     $second_folder = $_POST['second_folder'] ?? '';
 
+    // ป้องกัน Path Traversal
     if (strpos($first_folder, '..') !== false || strpos($second_folder, '..') !== false) {
         $error = "โฟลเดอร์ไม่ถูกต้อง";
     } else {
-        // final path: D:\Project Data\<first_folder>\Project\<second_folder>\Engineering\Pic\
+        // สร้าง path ปลายทาง: D:\Project Data\<first_folder>\Project\<second_folder>\Engineering\Pic\
         $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        $final_path = $upload_root . $first_folder . DIRECTORY_SEPARATOR . "Project" . DIRECTORY_SEPARATOR . $second_folder . DIRECTORY_SEPARATOR . "Engineering" . DIRECTORY_SEPARATOR . "Pic" . DIRECTORY_SEPARATOR;
+        $final_path = $upload_root 
+                    . $first_folder 
+                    . DIRECTORY_SEPARATOR 
+                    . "Project" 
+                    . DIRECTORY_SEPARATOR 
+                    . $second_folder 
+                    . DIRECTORY_SEPARATOR 
+                    . "Engineering" 
+                    . DIRECTORY_SEPARATOR 
+                    . "Pic" 
+                    . DIRECTORY_SEPARATOR;
 
+        // สร้างโฟลเดอร์หากไม่มี
         if (!is_dir($final_path)) {
             mkdir($final_path, 0777, true);
         }
@@ -29,9 +42,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $real_base = realpath($config['upload_directory']);
         $real_target_dir = realpath($final_path);
 
+        // ตรวจสอบว่ามีโฟลเดอร์จริงหรือไม่ และอยู่ภายใต้ base
         if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
             $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้";
         } else {
+            // ตรวจสอบไฟล์ที่อัปโหลด
             if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
                 $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
                 $file_type = mime_content_type($_FILES['image']['tmp_name']);
@@ -42,9 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!in_array($extension, $allowed_ext) || !in_array($file_type, $allowed_types)) {
                     $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif) เท่านั้น";
                 } else {
-                    // เริ่มการตั้งชื่อไฟล์ใหม่
+                    // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
                     $username = $_SESSION['username'];
-                    $today = date("Ymd"); // ปีเดือนวัน
+                    $today = date("Ymd");
                     $count = 0; 
                     
                     // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
@@ -54,10 +69,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             // รูปแบบ log: filename|timestamp|username|folder
                             $parts = explode("|", $line);
                             if (count($parts) === 4) {
-                                $log_filename = $parts[0];
                                 $log_timestamp = $parts[1];
                                 $log_user = $parts[2];
                                 $log_date = date("Ymd", $log_timestamp);
+                                // หาก user ตรงกันและวันเดียวกัน
                                 if ($log_user === $username && $log_date === $today) {
                                     $count++;
                                 }
@@ -65,25 +80,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
 
-                    // เลขลำดับถัดไป
-                    $count = $count + 1;
-                    $seq = str_pad($count, 3, "0", STR_PAD_LEFT); // ###
-
-                    // ตั้งชื่อไฟล์ตาม pattern: YYYYMMDD-username-###.extension
-                    $new_filename = $today . "-" . $username . "-" . $seq . "." . $extension;
+                    $count++;
+                    $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
+                    $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
                     $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
 
-                    // หากบังเอิญมีชื่อซ้ำ วนหาชื่อใหม่ (โอกาสน้อยมาก)
+                    // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
                     while (file_exists($target)) {
                         $count++;
                         $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                        $new_filename = $today . "-" . $username . "-" . $seq . "." . $extension;
+                        $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
                         $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
                     }
 
+                    // ย้ายไฟล์ (อัปโหลด)
                     if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
+                        // บันทึก log
                         $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
-                        file_put_contents($config['upload_log'], 
+                        file_put_contents(
+                            $config['upload_log'], 
                             $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
                             FILE_APPEND
                         );
@@ -113,8 +128,7 @@ if (is_dir($upload_root)) {
             }
         }
     }
-    // เรียงจากใหม่ไปเก่า
-    arsort($folder_times);
+    arsort($folder_times); // เรียงจากใหม่ไปเก่า
     $first_level_folders = array_keys($folder_times);
 }
 ?>
@@ -123,6 +137,7 @@ if (is_dir($upload_root)) {
 <head>
 <meta charset="UTF-8">
 <title>Upload รูปภาพ</title>
+<!-- รองรับการแสดงผลบนมือถือ (viewport) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
@@ -141,13 +156,16 @@ if (is_dir($upload_root)) {
         <div class="message" style="color:green;"><?php echo htmlspecialchars($success, ENT_QUOTES, 'UTF-8'); ?></div>
     <?php endif; ?>
 
+    <!-- เลือกโฟลเดอร์ระดับแรก -->
     <div>
         <label>Folders ปี:</label>
         <select id="first_select">
             <option value="">-กรุณาเลือกโฟลเดอร์-</option>
             <?php if (!empty($first_level_folders)): ?>
                 <?php foreach ($first_level_folders as $f): ?>
-                    <option value="<?php echo htmlspecialchars($f, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($f, ENT_QUOTES, 'UTF-8'); ?></option>
+                    <option value="<?php echo htmlspecialchars($f, ENT_QUOTES, 'UTF-8'); ?>">
+                        <?php echo htmlspecialchars($f, ENT_QUOTES, 'UTF-8'); ?>
+                    </option>
                 <?php endforeach; ?>
             <?php else: ?>
                 <option value="">ไม่มีโฟลเดอร์</option>
@@ -155,6 +173,7 @@ if (is_dir($upload_root)) {
         </select>
     </div>
 
+    <!-- เลือกโฟลเดอร์ระดับสอง -->
     <div style="margin-top:10px;">
         <label>Folders Project:</label>
         <select id="second_select" disabled>
@@ -162,13 +181,24 @@ if (is_dir($upload_root)) {
         </select>
     </div>
 
+    <!-- แสดง path ที่ผู้ใช้เลือก -->
     <div id="selected-info" style="margin-top:10px; color:blue;"></div>
 
+    <!-- ฟอร์มอัปโหลดไฟล์ -->
     <form method="post" enctype="multipart/form-data" id="upload-form" style="margin-top:20px;">
         <input type="hidden" name="first_folder" value="">
         <input type="hidden" name="second_folder" value="">
-        <label>เลือกรูปภาพ:</label>
-        <input type="file" name="image" accept="image/*">
+
+        <label>ถ่ายรูปหรือเลือกรูปภาพ:</label>
+        <!-- เพิ่ม capture="camera" เพื่อบอกมือถือว่าให้ใช้กล้อง (หากอุปกรณ์รองรับ) -->
+        <input 
+            type="file" 
+            name="image" 
+            accept="image/*" 
+            capture="camera"
+            required
+        >
+
         <button type="submit">อัพโหลด</button>
     </form>
 </div>
@@ -181,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const firstFolderInput = document.querySelector('input[name="first_folder"]');
     const secondFolderInput = document.querySelector('input[name="second_folder"]');
 
+    // เมื่อเลือกโฟลเดอร์แรก
     firstSelect.addEventListener('change', async () => {
         const chosenFirst = firstSelect.value;
         if (!chosenFirst) {
@@ -192,19 +223,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // เก็บค่าลง hidden input
         firstFolderInput.value = chosenFirst;
+        // เรียก AJAX เพื่อดู subfolder
         const path = chosenFirst + "\\Project";
         let subFolders = await loadSubFolders(path);
         renderSecondLevel(subFolders);
         updateSelectedInfo();
     });
 
+    // เมื่อเลือกโฟลเดอร์ที่สอง
     secondSelect.addEventListener('change', () => {
         const chosenSecond = secondSelect.value;
         secondFolderInput.value = chosenSecond;
         updateSelectedInfo();
     });
 
+    // ฟังก์ชันโหลด subfolder ผ่าน AJAX
     async function loadSubFolders(path) {
         const formData = new FormData();
         formData.append('path', path);
@@ -219,6 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return [];
     }
 
+    // แสดงผลโฟลเดอร์ระดับสองใน select
     function renderSecondLevel(folders) {
         secondSelect.innerHTML = "";
         if (folders.length > 0) {
@@ -243,10 +279,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // อัปเดตข้อความบอกว่าเลือกโฟลเดอร์อะไร
     function updateSelectedInfo() {
         const f1 = firstFolderInput.value;
         const f2 = secondFolderInput.value;
-
         if (f1 && f2) {
             selectedInfo.textContent = "คุณเลือก: " + f1 + " / " + f2;
         } else if (f1 && !f2) {
