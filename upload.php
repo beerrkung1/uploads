@@ -49,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // ตรวจสอบไฟล์ที่อัปโหลด
             if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
                 $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
+                // หาก extension fileinfo ยังไม่ได้เปิด อาจใช้ $_FILES['image']['type'] แทน
                 $file_type = mime_content_type($_FILES['image']['tmp_name']);
                 $original_name = $_FILES['image']['name'];
                 $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
@@ -184,6 +185,10 @@ if (is_dir($upload_root)) {
     <!-- แสดง path ที่ผู้ใช้เลือก -->
     <div id="selected-info" style="margin-top:10px; color:blue;"></div>
 
+    <!-- แสดง path เต็ม -->
+    <div id="fullpath-info" style="margin-top:10px; color:green; font-weight: bold;"></div>
+    <div id="fullpath-check" style="margin-top:5px; color:red;"></div>
+
     <!-- ฟอร์มอัปโหลดไฟล์ -->
     <form method="post" enctype="multipart/form-data" id="upload-form" style="margin-top:20px;">
         <input type="hidden" name="first_folder" value="">
@@ -208,6 +213,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const firstSelect = document.getElementById('first_select');
     const secondSelect = document.getElementById('second_select');
     const selectedInfo = document.getElementById('selected-info');
+    const fullPathInfo = document.getElementById('fullpath-info');
+    const fullPathCheck = document.getElementById('fullpath-check');
+
     const firstFolderInput = document.querySelector('input[name="first_folder"]');
     const secondFolderInput = document.querySelector('input[name="second_folder"]');
 
@@ -220,16 +228,18 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedInfo.textContent = "";
             firstFolderInput.value = "";
             secondFolderInput.value = "";
+            // เคลียร์ path
+            fullPathInfo.textContent = "";
+            fullPathCheck.textContent = "";
             return;
         }
 
-        // เก็บค่าลง hidden input
         firstFolderInput.value = chosenFirst;
-        // เรียก AJAX เพื่อดู subfolder
         const path = chosenFirst + "\\Project";
         let subFolders = await loadSubFolders(path);
         renderSecondLevel(subFolders);
         updateSelectedInfo();
+        updateFullPathInfo();
     });
 
     // เมื่อเลือกโฟลเดอร์ที่สอง
@@ -237,6 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const chosenSecond = secondSelect.value;
         secondFolderInput.value = chosenSecond;
         updateSelectedInfo();
+        updateFullPathInfo();
     });
 
     // ฟังก์ชันโหลด subfolder ผ่าน AJAX
@@ -289,6 +300,56 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedInfo.textContent = "คุณเลือก: " + f1;
         } else {
             selectedInfo.textContent = "";
+        }
+    }
+
+    // สร้างและแสดง path เต็ม
+    function updateFullPathInfo() {
+        const f1 = firstFolderInput.value;
+        const f2 = secondFolderInput.value;
+        if (!f1) {
+            fullPathInfo.textContent = "";
+            fullPathCheck.textContent = "";
+            return;
+        }
+
+        // path เต็ม: D:\Project Data\<first_folder>\Project\<second_folder>\Engineering\Pic\
+        let base = "<?php echo addslashes($config['upload_directory']); ?>";
+        // base => D:\Project Data\
+        // เช็คว่าใน JS เราอาจต้อง replace backslash เป็น double-backslash
+        base = base.replace(/\\/g, "\\\\"); // ป้องกัน escape
+
+        let fullPath = base + f1 + "\\Project\\";
+        if (f2) {
+            fullPath += f2 + "\\";
+        }
+        fullPath += "Engineering\\Pic\\";
+
+        fullPathInfo.textContent = "Full Path: " + fullPath;
+
+        // เรียก AJAX ไปเช็คว่ามี path นั้นจริงไหม
+        checkPathExists(fullPath);
+    }
+
+    async function checkPathExists(fullPath) {
+        // สร้าง formData เพื่อส่ง path ไปตรวจ
+        let formData = new FormData();
+        formData.append('check_path', fullPath);
+
+        let resp = await fetch('check_path.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!resp.ok) {
+            fullPathCheck.textContent = "ไม่สามารถตรวจสอบ path ได้ (status " + resp.status + ")";
+            return;
+        }
+        let data = await resp.json();
+        if (data.exists) {
+            fullPathCheck.textContent = "Path นี้มีอยู่ในระบบแล้ว";
+        } else {
+            fullPathCheck.textContent = "Path นี้ยังไม่มี (หรือเข้าถึงไม่ได้)";
         }
     }
 });
