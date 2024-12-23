@@ -8,11 +8,7 @@ function generatePasswordHash($password) {
 
 // รายการผู้ใช้และรหัสผ่านที่ต้องการ
 $users = [
-    'admin1' => 'Password1!',
-    'admin2' => 'Password2!',
-    'admin3' => 'Password3!',
-    'admin4' => 'Password4!',
-    'admin5' => 'Password5!'
+    'tanapornk' => 'niton2635'
 ];
 
 // แสดงรหัสแฮชสำหรับแต่ละผู้ใช้
