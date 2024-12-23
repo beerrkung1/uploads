@@ -2,6 +2,7 @@
 session_start();
 $config = include 'config.php';
 
+// ถ้าล็อกอินแล้ว ให้ไป dashboard
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     header("Location: dashboard.php");
     exit;
@@ -11,13 +12,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = $_POST['username'] ?? '';
     $pass = $_POST['password'] ?? '';
 
-    if ($user === $config['username'] && password_verify($pass, $config['password_hash'])) {
-        $_SESSION['logged_in'] = true;
-        $_SESSION['username'] = $user;
-        header("Location: dashboard.php");
-        exit;
+    // เดิม: ตรวจสอบเฉพาะ $config['username'] และ $config['password_hash']
+    // ใหม่: ตรวจสอบใน $config['users'] (array)
+    if (!empty($config['users']) && is_array($config['users'])) {
+        // ตรวจสอบว่ามี username นี้อยู่ใน array หรือไม่
+        if (array_key_exists($user, $config['users'])) {
+            // มี user นี้ใน config
+            $stored_hash = $config['users'][$user];
+            // เช็ค password
+            if (password_verify($pass, $stored_hash)) {
+                // ผ่าน
+                $_SESSION['logged_in'] = true;
+                $_SESSION['username'] = $user;
+                header("Location: dashboard.php");
+                exit;
+            } else {
+                $error = "รหัสผ่านไม่ถูกต้อง";
+            }
+        } else {
+            $error = "ไม่พบบัญชีผู้ใช้ หรือชื่อผู้ใช้ไม่ถูกต้อง";
+        }
     } else {
-        $error = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
+        $error = "ระบบยังไม่พร้อม หรือไม่มีข้อมูลผู้ใช้ใน config";
     }
 }
 ?>
