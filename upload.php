@@ -1,4 +1,9 @@
 <?php
+// สำหรับการดีบักเท่านั้น ควรปิดใน Production
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 $config = include 'config.php';
 
@@ -57,7 +62,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $original_name = $_FILES['image']['name'];
                 $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
 
-                // ตรวจสอบนามสกุลไฟล์
                 if (!in_array($extension, $allowed_ext)) {
                     $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif) เท่านั้น";
                 } else {
