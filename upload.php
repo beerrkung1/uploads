@@ -57,56 +57,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($_FILES['image'])) {
                 $file_error = $_FILES['image']['error'];
                 if ($file_error === UPLOAD_ERR_OK) {
-                    // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
-                    $username = $_SESSION['username'];
-                    $today = date("Ymd");
-                    $count = 0; 
-                    
-                    // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
-                    if (file_exists($config['upload_log'])) {
-                        $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                        foreach ($log_lines as $line) {
-                            // รูปแบบ log: filename|timestamp|username|folder
-                            $parts = explode("|", $line);
-                            if (count($parts) === 4) {
-                                $log_timestamp = $parts[1];
-                                $log_user = $parts[2];
-                                $log_date = date("Ymd", $log_timestamp);
-                                // หาก user ตรงกันและวันเดียวกัน
-                                if ($log_user === $username && $log_date === $today) {
-                                    $count++;
+                    // ตรวจสอบขนาดไฟล์ในฝั่ง PHP
+                    $max_file_size = 50 * 1024 * 1024; // 50MB
+                    if ($_FILES['image']['size'] > $max_file_size) {
+                        $error = "ขนาดไฟล์เกินที่กำหนด (สูงสุด 50MB)";
+                    } else {
+                        // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
+                        $username = $_SESSION['username'];
+                        $today = date("Ymd");
+                        $count = 0; 
+                        
+                        // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
+                        if (file_exists($config['upload_log'])) {
+                            $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                            foreach ($log_lines as $line) {
+                                // รูปแบบ log: filename|timestamp|username|folder
+                                $parts = explode("|", $line);
+                                if (count($parts) === 4) {
+                                    $log_timestamp = $parts[1];
+                                    $log_user = $parts[2];
+                                    $log_date = date("Ymd", $log_timestamp);
+                                    // หาก user ตรงกันและวันเดียวกัน
+                                    if ($log_user === $username && $log_date === $today) {
+                                        $count++;
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    $count++;
-                    $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                    $original_name = $_FILES['image']['name'];
-                    $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
-                    $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
-                    $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
-
-                    // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
-                    while (file_exists($target)) {
                         $count++;
                         $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
+                        $original_name = $_FILES['image']['name'];
+                        $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
                         $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
                         $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
-                    }
 
-                    // ย้ายไฟล์ (อัปโหลด)
-                    if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
-                        // บันทึก log
-                        $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
-                        file_put_contents(
-                            $config['upload_log'], 
-                            $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
-                            FILE_APPEND
-                        );
-                        $success = "อัปโหลดรูปภาพสำเร็จ";
-                    } else {
-                        $error = "ไม่สามารถย้ายไฟล์ไปยังโฟลเดอร์ปลายทางได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
+                        // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
+                        while (file_exists($target)) {
+                            $count++;
+                            $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
+                            $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
+                            $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+                        }
+
+                        // ย้ายไฟล์ (อัปโหลด)
+                        if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
+                            // บันทึก log
+                            $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
+                            file_put_contents(
+                                $config['upload_log'], 
+                                $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
+                                FILE_APPEND
+                            );
+                            $success = "อัปโหลดรูปภาพสำเร็จ";
+                        } else {
+                            $error = "ไม่สามารถย้ายไฟล์ไปยังโฟลเดอร์ปลายทางได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
+                        }
                     }
                 } else {
                     // จัดการข้อผิดพลาดจาก $_FILES['image']['error']
@@ -356,6 +362,18 @@ document.addEventListener('DOMContentLoaded', () => {
             fullPathCheck.textContent = "Path นี้ยังไม่มี (หรือเข้าถึงไม่ได้)";
         }
     }
+
+    // เพิ่มการตรวจสอบขนาดไฟล์ในฝั่งไคลเอนต์
+    document.getElementById('upload-form').addEventListener('submit', function(e) {
+        const fileInput = document.querySelector('input[name="image"]');
+        const file = fileInput.files[0];
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        
+        if (file.size > maxSize) {
+            e.preventDefault();
+            alert('ขนาดไฟล์เกิน 50MB กรุณาเลือกไฟล์ที่มีขนาดเล็กลง');
+        }
+    });
 });
 </script>
 </body>
