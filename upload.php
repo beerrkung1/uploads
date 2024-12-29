@@ -11,10 +11,49 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 $error = "";
 $success = "";
 
+// ฟังก์ชันสำหรับจัดการกับการหมุนภาพตาม EXIF
+function correctImageOrientation($source, &$image) {
+    if (function_exists('exif_read_data')) {
+        $exif = @exif_read_data($source);
+        if ($exif && isset($exif['Orientation'])) {
+            $orientation = $exif['Orientation'];
+            switch ($orientation) {
+                case 3:
+                    $image = imagerotate($image, 180, 0);
+                    break;
+                case 6:
+                    $image = imagerotate($image, -90, 0);
+                    break;
+                case 8:
+                    $image = imagerotate($image, 90, 0);
+                    break;
+            }
+        }
+    }
+}
+
 // ฟังก์ชันสำหรับแปลงรูปภาพเป็น PNG
 function convertToPNG($source, $destination, $file_type) {
+    // ตรวจสอบว่ามีไลบรารี Imagick ติดตั้งอยู่หรือไม่
+    if ($file_type === 'image/heic' && class_exists('Imagick')) {
+        try {
+            $image = new Imagick($source);
+            // ตั้งค่าฉากภาพเพื่อแปลงเป็น PNG
+            $image->setImageFormat('png');
+            // บันทึกไฟล์
+            $result = $image->writeImage($destination);
+            $image->clear();
+            $image->destroy();
+            return $result;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    // ใช้ไลบรารี GD สำหรับฟอร์แมตอื่นๆ
     switch ($file_type) {
         case 'image/jpeg':
+        case 'image/jpg':
             $image = imagecreatefromjpeg($source);
             break;
         case 'image/gif':
@@ -30,6 +69,9 @@ function convertToPNG($source, $destination, $file_type) {
     if (!$image) {
         return false;
     }
+
+    // จัดการกับการหมุนภาพตาม EXIF
+    correctImageOrientation($source, $image);
 
     // บันทึกรูปภาพเป็น PNG
     $result = imagepng($image, $destination);
@@ -80,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
 
                 // ตรวจสอบนามสกุลไฟล์
-                $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/heic'];
 
                 // ถ้า fileinfo ยังไม่เปิด ให้เปลี่ยนเป็น $_FILES['image']['type'] ชั่วคราว
                 if (function_exists('mime_content_type')) {
@@ -91,10 +133,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $original_name = $_FILES['image']['name'];
                 $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
-                $allowed_ext = ['jpg','jpeg','png','gif'];
+                $allowed_ext = ['jpg','jpeg','png','gif','heic'];
 
                 if (!in_array($extension, $allowed_ext) || !in_array($file_type, $allowed_types)) {
-                    $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif) เท่านั้น";
+                    $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif, heic) เท่านั้น";
                 } else {
                     // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
                     $username = $_SESSION['username'];
@@ -146,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $success = "อัปโหลดและแปลงรูปภาพเป็น PNG สำเร็จ";
                     } else {
                         // ถ้าไม่สามารถแปลงได้ อาจจะบันทึกเป็นไฟล์ต้นฉบับ หรือแจ้งข้อผิดพลาด
-                        $error = "ไม่สามารถแปลงไฟล์เป็น PNG ได้";
+                        $error = "ไม่สามารถแปลงไฟล์เป็น PNG ได้ หรือไฟล์เป็น PNG อยู่แล้ว";
                     }
                 }
             } else {
