@@ -123,8 +123,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // ตรวจสอบนามสกุลไฟล์
                 $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/heic'];
+                $allowed_ext = ['jpg','jpeg','png','gif','heic'];
 
-                // ถ้า fileinfo ยังไม่เปิด ให้เปลี่ยนเป็น $_FILES['image']['type'] ชั่วคราว
+                // ตรวจสอบประเภทไฟล์ด้วย MIME type
                 if (function_exists('mime_content_type')) {
                     $file_type = mime_content_type($_FILES['image']['tmp_name']);
                 } else {
@@ -133,7 +134,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $original_name = $_FILES['image']['name'];
                 $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
-                $allowed_ext = ['jpg','jpeg','png','gif','heic'];
 
                 if (!in_array($extension, $allowed_ext) || !in_array($file_type, $allowed_types)) {
                     $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif, heic) เท่านั้น";
@@ -163,32 +163,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $count++;
                     $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                    $new_filename = "{$today}-{$username}-{$seq}.png"; // เปลี่ยนเป็น .png
+                    $new_filename = "{$today}-{$username}-{$seq}.png"; // ตั้งชื่อไฟล์เป็น .png
                     $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
 
                     // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
                     while (file_exists($target)) {
                         $count++;
                         $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                        $new_filename = "{$today}-{$username}-{$seq}.png"; // เปลี่ยนเป็น .png
+                        $new_filename = "{$today}-{$username}-{$seq}.png"; // ตั้งชื่อไฟล์เป็น .png
                         $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
                     }
 
-                    // แปลงไฟล์เป็น PNG
-                    $conversion_result = convertToPNG($_FILES['image']['tmp_name'], $target, $file_type);
-
-                    if ($conversion_result) {
-                        // บันทึก log
-                        $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
-                        file_put_contents(
-                            $config['upload_log'], 
-                            $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
-                            FILE_APPEND
-                        );
-                        $success = "อัปโหลดและแปลงรูปภาพเป็น PNG สำเร็จ";
+                    // ตรวจสอบว่าไฟล์เป็น PNG หรือไม่
+                    if ($file_type === 'image/png') {
+                        // หากเป็น PNG อยู่แล้ว ไม่ต้องแปลง
+                        if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
+                            // บันทึก log
+                            $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
+                            file_put_contents(
+                                $config['upload_log'], 
+                                $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
+                                FILE_APPEND
+                            );
+                            $success = "อัปโหลดไฟล์ PNG สำเร็จ";
+                        } else {
+                            $error = "ไม่สามารถอัปโหลดไฟล์ได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
+                        }
                     } else {
-                        // ถ้าไม่สามารถแปลงได้ อาจจะบันทึกเป็นไฟล์ต้นฉบับ หรือแจ้งข้อผิดพลาด
-                        $error = "ไม่สามารถแปลงไฟล์เป็น PNG ได้ หรือไฟล์เป็น PNG อยู่แล้ว";
+                        // หากไม่ใช่ PNG ต้องแปลงเป็น PNG ก่อนอัปโหลด
+                        $conversion_result = convertToPNG($_FILES['image']['tmp_name'], $target, $file_type);
+
+                        if ($conversion_result) {
+                            // บันทึก log
+                            $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
+                            file_put_contents(
+                                $config['upload_log'], 
+                                $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
+                                FILE_APPEND
+                            );
+                            $success = "อัปโหลดและแปลงไฟล์เป็น PNG สำเร็จ";
+                        } else {
+                            // ถ้าไม่สามารถแปลงได้
+                            $error = "ไม่สามารถแปลงไฟล์เป็น PNG ได้";
+                        }
                     }
                 }
             } else {
@@ -196,7 +213,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-}
 
 // โหลดโฟลเดอร์ระดับแรกจาก D:\Project Data\ และเรียงจากใหม่ไปเก่า
 $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
@@ -278,7 +294,7 @@ if (is_dir($upload_root)) {
             capture="camera"
             required
         >
-        <button type="submit">อัพโหลด</button>
+        <button type="submit" id="upload-button">อัพโหลด</button>
     </form>
 </div>
 
@@ -289,6 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedInfo = document.getElementById('selected-info');
     const fullPathInfo = document.getElementById('fullpath-info');
     const fullPathCheck = document.getElementById('fullpath-check');
+    const uploadButton = document.getElementById('upload-button');
+    const fileInput = document.querySelector('input[name="image"]');
 
     const firstFolderInput = document.querySelector('input[name="first_folder"]');
     const secondFolderInput = document.querySelector('input[name="second_folder"]');
@@ -319,6 +337,12 @@ document.addEventListener('DOMContentLoaded', () => {
         secondFolderInput.value = chosenSecond;
         updateSelectedInfo();
         updateFullPathInfo();
+    });
+
+    fileInput.addEventListener('change', () => {
+        // ไม่ต้องตรวจสอบประเภทไฟล์ที่ฝั่ง Client-Side
+        // ให้ผู้ใช้เลือกไฟล์รูปภาพที่ต้องการได้ทุกประเภท
+        // แต่สามารถเพิ่มการตรวจสอบเพิ่มเติมถ้าต้องการ
     });
 
     async function loadSubFolders(path) {
