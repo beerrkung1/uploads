@@ -16,222 +16,155 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 $error = "";
 $success = "";
 
-// ฟังก์ชันบีบอัดรูปภาพให้มีขนาดไม่เกินขนาดที่กำหนด
-function compressImage($source, $destination, $max_size) {
-    $info = getimagesize($source);
-    
-    if ($info['mime'] === 'image/jpeg') {
-        $image = imagecreatefromjpeg($source);
-    } elseif ($info['mime'] === 'image/png') {
-        $image = imagecreatefrompng($source);
-    } elseif ($info['mime'] === 'image/gif') {
-        $image = imagecreatefromgif($source);
-    } else {
-        // ไม่รองรับประเภทไฟล์นี้
-        return false;
-    }
-
-    // เริ่มการบีบอัด
-    $quality = 90;
-    do {
-        ob_start();
-        imagejpeg($image, null, $quality);
-        $compressed = ob_get_contents();
-        ob_end_clean();
-
-        $size = strlen($compressed);
-        $quality -= 10;
-    } while ($size > $max_size && $quality > 10);
-
-    // บันทึกไฟล์ที่บีบอัดแล้ว
-    file_put_contents($destination, $compressed);
-
-    // ทำลายทรัพยากร
-    imagedestroy($image);
-
-    return $size <= $max_size;
-}
-
 // เมื่อมีการส่งข้อมูลแบบ POST (อัปโหลดไฟล์)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // ตรวจสอบว่าเป็นการตรวจสอบ path หรือไม่
-    if (isset($_POST['check_path'])) {
-        $check_path = $_POST['check_path'] ?? '';
-        $real_base = realpath($config['upload_directory']);
-        $real_target_dir = realpath($check_path);
+    $first_folder = $_POST['first_folder'] ?? '';
+    $second_folder = $_POST['second_folder'] ?? '';
 
-        if ($real_target_dir !== false && strpos($real_target_dir, $real_base) === 0) {
-            $response = ['exists' => true];
-        } else {
-            $response = ['exists' => false];
+    // ป้องกัน Path Traversal
+    if (strpos($first_folder, '..') !== false || strpos($second_folder, '..') !== false) {
+        $error = "โฟลเดอร์ไม่ถูกต้อง";
+    } else {
+        // สร้าง path ปลายทาง: D:\Project Data\<first_folder>\Project\<second_folder>\Engineering\Pic\
+        $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $final_path = $upload_root 
+                    . $first_folder 
+                    . DIRECTORY_SEPARATOR 
+                    . "Project" 
+                    . DIRECTORY_SEPARATOR 
+                    . $second_folder 
+                    . DIRECTORY_SEPARATOR 
+                    . "Engineering" 
+                    . DIRECTORY_SEPARATOR 
+                    . "Pic" 
+                    . DIRECTORY_SEPARATOR;
+
+        // สร้างโฟลเดอร์หากไม่มี
+        if (!is_dir($final_path)) {
+            if (!@mkdir($final_path, 0777, true)) {
+                $error = "ไม่สามารถสร้างโฟลเดอร์ปลายทางได้ (ตรวจสอบสิทธิ์)";
+            }
         }
 
-        header('Content-Type: application/json');
-        echo json_encode($response);
-        exit;
-    }
+        $real_base = realpath($config['upload_directory']);
+        $real_target_dir = realpath($final_path);
 
-    // ตรวจสอบว่าเป็นการอัปโหลดไฟล์หรือไม่
-    if (isset($_POST['first_folder']) && isset($_POST['second_folder'])) {
-        $first_folder = $_POST['first_folder'] ?? '';
-        $second_folder = $_POST['second_folder'] ?? '';
-
-        // ป้องกัน Path Traversal
-        if (strpos($first_folder, '..') !== false || strpos($second_folder, '..') !== false) {
-            $error = "โฟลเดอร์ไม่ถูกต้อง";
+        // ตรวจสอบว่ามีโฟลเดอร์จริงหรือไม่ และอยู่ภายใต้ base
+        if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
+            $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้ (path ผิด หรือ permission ไม่พอ)";
         } else {
-            // สร้าง path ปลายทาง: D:\Project Data\<first_folder>\Project\<second_folder>\Engineering\Pic\
-            $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-            $final_path = $upload_root 
-                        . $first_folder 
-                        . DIRECTORY_SEPARATOR 
-                        . "Project" 
-                        . DIRECTORY_SEPARATOR 
-                        . $second_folder 
-                        . DIRECTORY_SEPARATOR 
-                        . "Engineering" 
-                        . DIRECTORY_SEPARATOR 
-                        . "Pic" 
-                        . DIRECTORY_SEPARATOR;
-
-            // สร้างโฟลเดอร์หากไม่มี
-            if (!is_dir($final_path)) {
-                if (!@mkdir($final_path, 0777, true)) {
-                    $error = "ไม่สามารถสร้างโฟลเดอร์ปลายทางได้ (ตรวจสอบสิทธิ์)";
-                }
-            }
-
-            $real_base = realpath($config['upload_directory']);
-            $real_target_dir = realpath($final_path);
-
-            // ตรวจสอบว่ามีโฟลเดอร์จริงหรือไม่ และอยู่ภายใต้ base
-            if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
-                $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้ (path ผิด หรือ permission ไม่พอ)";
-            } else {
-                // ตรวจสอบไฟล์ที่อัปโหลด
-                if (isset($_FILES['image'])) {
-                    $file_error = $_FILES['image']['error'];
-                    if ($file_error === UPLOAD_ERR_OK) {
-                        // ตรวจสอบขนาดไฟล์ในฝั่ง PHP
-                        $max_file_size = 2 * 1024 * 1024; // 2MB
-                        if ($_FILES['image']['size'] > $max_file_size) {
-                            $error = "ขนาดไฟล์เกินที่กำหนด (สูงสุด 2MB)";
-                        } else {
-                            // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
-                            $username = $_SESSION['username'];
-                            $today = date("Ymd");
-                            $count = 0; 
-                            
-                            // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
-                            if (file_exists($config['upload_log'])) {
-                                $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                                foreach ($log_lines as $line) {
-                                    // รูปแบบ log: filename|timestamp|username|folder
-                                    $parts = explode("|", $line);
-                                    if (count($parts) === 4) {
-                                        $log_timestamp = $parts[1];
-                                        $log_user = $parts[2];
-                                        $log_date = date("Ymd", $log_timestamp);
-                                        // หาก user ตรงกันและวันเดียวกัน
-                                        if ($log_user === $username && $log_date === $today) {
-                                            $count++;
-                                        }
+            // ตรวจสอบไฟล์ที่อัปโหลด
+            if (isset($_FILES['image'])) {
+                $file_error = $_FILES['image']['error'];
+                if ($file_error === UPLOAD_ERR_OK) {
+                    // ตรวจสอบขนาดไฟล์ในฝั่ง PHP
+                    $max_file_size = 50 * 1024 * 1024; // 50MB
+                    if ($_FILES['image']['size'] > $max_file_size) {
+                        $error = "ขนาดไฟล์เกินที่กำหนด (สูงสุด 50MB)";
+                    } else {
+                        // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
+                        $username = $_SESSION['username'];
+                        $today = date("Ymd");
+                        $count = 0; 
+                        
+                        // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
+                        if (file_exists($config['upload_log'])) {
+                            $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                            foreach ($log_lines as $line) {
+                                // รูปแบบ log: filename|timestamp|username|folder
+                                $parts = explode("|", $line);
+                                if (count($parts) === 4) {
+                                    $log_timestamp = $parts[1];
+                                    $log_user = $parts[2];
+                                    $log_date = date("Ymd", $log_timestamp);
+                                    // หาก user ตรงกันและวันเดียวกัน
+                                    if ($log_user === $username && $log_date === $today) {
+                                        $count++;
                                     }
                                 }
-                            }
-
-                            $count++;
-                            $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                            $original_name = $_FILES['image']['name'];
-                            $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
-                            $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
-                            $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
-
-                            // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
-                            while (file_exists($target)) {
-                                $count++;
-                                $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                                $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
-                                $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
-                            }
-
-                            // ย้ายไฟล์ (อัปโหลด)
-                            if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
-                                // ตรวจสอบขนาดไฟล์หลังการอัปโหลด
-                                if (filesize($target) > $max_file_size) {
-                                    // บีบอัดรูปภาพหากยังเกินขนาดที่ต้องการ
-                                    if (!compressImage($target, $target, $max_file_size)) {
-                                        $error = "ไฟล์ที่อัปโหลดเกินขนาด 2MB และไม่สามารถบีบอัดได้เพียงพอ กรุณาอัปโหลดไฟล์ใหม่";
-                                        // ลบไฟล์ที่อัปโหลดแล้ว
-                                        unlink($target);
-                                    }
-                                }
-
-                                if (empty($error)) {
-                                    // บันทึก log
-                                    $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
-                                    file_put_contents(
-                                        $config['upload_log'], 
-                                        $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
-                                        FILE_APPEND
-                                    );
-                                    $success = "อัปโหลดรูปภาพสำเร็จ";
-                                }
-                            } else {
-                                $error = "ไม่สามารถย้ายไฟล์ไปยังโฟลเดอร์ปลายทางได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
                             }
                         }
-                    } else {
-                        // จัดการข้อผิดพลาดจาก $_FILES['image']['error']
-                        switch ($file_error) {
-                            case UPLOAD_ERR_INI_SIZE:
-                            case UPLOAD_ERR_FORM_SIZE:
-                                $error = "ไฟล์ที่อัปโหลดมีขนาดใหญ่เกินไป";
-                                break;
-                            case UPLOAD_ERR_PARTIAL:
-                                $error = "ไฟล์ถูกอัปโหลดมาไม่ครบ";
-                                break;
-                            case UPLOAD_ERR_NO_FILE:
-                                $error = "ไม่มีไฟล์ถูกอัปโหลด";
-                                break;
-                            case UPLOAD_ERR_NO_TMP_DIR:
-                                $error = "ไม่มีโฟลเดอร์ชั่วคราวบนเซิร์ฟเวอร์";
-                                break;
-                            case UPLOAD_ERR_CANT_WRITE:
-                                $error = "ไม่สามารถเขียนไฟล์ลงดิสก์ได้";
-                                break;
-                            case UPLOAD_ERR_EXTENSION:
-                                $error = "การอัปโหลดไฟล์ถูกยกเลิกโดยส่วนขยาย PHP";
-                                break;
-                            default:
-                                $error = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ (รหัสข้อผิดพลาด: $file_error)";
-                                break;
+
+                        $count++;
+                        $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
+                        $original_name = $_FILES['image']['name'];
+                        $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+                        $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
+                        $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+
+                        // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
+                        while (file_exists($target)) {
+                            $count++;
+                            $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
+                            $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
+                            $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+                        }
+
+                        // ย้ายไฟล์ (อัปโหลด)
+                        if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
+                            // บันทึก log
+                            $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
+                            file_put_contents(
+                                $config['upload_log'], 
+                                $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
+                                FILE_APPEND
+                            );
+                            $success = "อัปโหลดรูปภาพสำเร็จ";
+                        } else {
+                            $error = "ไม่สามารถย้ายไฟล์ไปยังโฟลเดอร์ปลายทางได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
                         }
                     }
                 } else {
-                    $error = "ไม่มีไฟล์ถูกส่งมา";
+                    // จัดการข้อผิดพลาดจาก $_FILES['image']['error']
+                    switch ($file_error) {
+                        case UPLOAD_ERR_INI_SIZE:
+                        case UPLOAD_ERR_FORM_SIZE:
+                            $error = "ไฟล์ที่อัปโหลดมีขนาดใหญ่เกินไป";
+                            break;
+                        case UPLOAD_ERR_PARTIAL:
+                            $error = "ไฟล์ถูกอัปโหลดมาไม่ครบ";
+                            break;
+                        case UPLOAD_ERR_NO_FILE:
+                            $error = "ไม่มีไฟล์ถูกอัปโหลด";
+                            break;
+                        case UPLOAD_ERR_NO_TMP_DIR:
+                            $error = "ไม่มีโฟลเดอร์ชั่วคราวบนเซิร์ฟเวอร์";
+                            break;
+                        case UPLOAD_ERR_CANT_WRITE:
+                            $error = "ไม่สามารถเขียนไฟล์ลงดิสก์ได้";
+                            break;
+                        case UPLOAD_ERR_EXTENSION:
+                            $error = "การอัปโหลดไฟล์ถูกยกเลิกโดยส่วนขยาย PHP";
+                            break;
+                        default:
+                            $error = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ (รหัสข้อผิดพลาด: $file_error)";
+                            break;
+                    }
                 }
+            } else {
+                $error = "ไม่มีไฟล์ถูกส่งมา";
             }
         }
     }
-    
-    // โหลดโฟลเดอร์ระดับแรกจาก D:\Project Data\ และเรียงจากใหม่ไปเก่า
-    $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    $first_level_folders = [];
-    if (is_dir($upload_root)) {
-        $dirs = scandir($upload_root);
-        $folder_times = [];
-        foreach ($dirs as $d) {
-            if ($d !== '.' && $d !== '..') {
-                $path = $upload_root . $d;
-                if (is_dir($path)) {
-                    $folder_times[$d] = filemtime($path);
-                }
+}
+
+// โหลดโฟลเดอร์ระดับแรกจาก D:\Project Data\ และเรียงจากใหม่ไปเก่า
+$upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+$first_level_folders = [];
+if (is_dir($upload_root)) {
+    $dirs = scandir($upload_root);
+    $folder_times = [];
+    foreach ($dirs as $d) {
+        if ($d !== '.' && $d !== '..') {
+            $path = $upload_root . $d;
+            if (is_dir($path)) {
+                $folder_times[$d] = filemtime($path);
             }
         }
-        arsort($folder_times);
-        $first_level_folders = array_keys($folder_times);
     }
+    arsort($folder_times);
+    $first_level_folders = array_keys($folder_times);
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -291,7 +224,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input 
             type="file" 
             name="image" 
-            accept="image/*"
             required
         >
         <button type="submit">อัพโหลด</button>
@@ -414,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let formData = new FormData();
         formData.append('check_path', fullPath);
 
-        let resp = await fetch('upload.php', { // ส่งไปยัง upload.php เอง
+        let resp = await fetch('check_path.php', {
             method: 'POST',
             body: formData
         });
@@ -431,101 +363,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // เพิ่มการบีบอัดรูปภาพก่อนอัปโหลด
+    // เพิ่มการตรวจสอบขนาดไฟล์ในฝั่งไคลเอนต์
     document.getElementById('upload-form').addEventListener('submit', function(e) {
-        e.preventDefault(); // ป้องกันการส่งฟอร์มแบบปกติ
-
         const fileInput = document.querySelector('input[name="image"]');
         const file = fileInput.files[0];
-        const maxSize = 2 * 1024 * 1024; // 2MB
-
-        if (!file) {
-            alert('กรุณาเลือกไฟล์ที่ต้องการอัปโหลด');
-            return;
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        
+        if (file.size > maxSize) {
+            e.preventDefault();
+            alert('ขนาดไฟล์เกิน 50MB กรุณาเลือกไฟล์ที่มีขนาดเล็กลง');
         }
-
-        // ตรวจสอบประเภทไฟล์ว่าเป็นรูปภาพหรือไม่
-        if (!file.type.startsWith('image/')) {
-            alert('กรุณาเลือกไฟล์รูปภาพเท่านั้น');
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = function(event) {
-            const img = new Image();
-            img.src = event.target.result;
-
-            img.onload = function() {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-
-                // กำหนดขนาดใหม่ (สามารถปรับเปลี่ยนตามต้องการ)
-                const MAX_WIDTH = img.width;
-                const MAX_HEIGHT = img.height;
-
-                let width = img.width;
-                let height = img.height;
-
-                // ปรับขนาดภาพหากจำเป็น
-                // สามารถเพิ่มเงื่อนไขเพื่อปรับขนาดให้เล็กลงหากต้องการ
-                canvas.width = width;
-                canvas.height = height;
-
-                ctx.drawImage(img, 0, 0, width, height);
-
-                // บีบอัดรูปภาพเป็น JPEG คุณภาพ 0.7 (ปรับตามต้องการ)
-                const quality = 0.7;
-                let dataURL = canvas.toDataURL('image/jpeg', quality);
-
-                // ตรวจสอบขนาดไฟล์ที่บีบอัด
-                let compressedSize = Math.ceil((dataURL.length * 3) / 4); // ขนาดในไบต์
-                if (compressedSize > maxSize) {
-                    alert('ขนาดไฟล์หลังการบีบอัดยังคงเกิน 2MB กรุณาเลือกไฟล์ที่มีขนาดเล็กลง');
-                    return;
-                }
-
-                // แปลง DataURL เป็น Blob
-                const blob = dataURLToBlob(dataURL);
-
-                // สร้าง FormData ใหม่และส่งผ่าน AJAX
-                const formData = new FormData(document.getElementById('upload-form'));
-                formData.set('image', blob, file.name);
-
-                // ส่งข้อมูลผ่าน AJAX
-                fetch('', { // ส่งไปยังหน้าปัจจุบัน (upload.php)
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.text())
-                .then(data => {
-                    // โหลดหน้าซ้ำเพื่อแสดงผลลัพธ์
-                    window.location.reload();
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('เกิดข้อผิดพลาดในการอัปโหลดไฟล์');
-                });
-            };
-        };
-
-        reader.onerror = function() {
-            alert('ไม่สามารถอ่านไฟล์ได้');
-        };
     });
-
-    // ฟังก์ชันแปลง DataURL เป็น Blob
-    function dataURLToBlob(dataURL) {
-        const parts = dataURL.split(';base64,');
-        const byteString = atob(parts[1]);
-        const mimeString = parts[0].split(':')[1];
-        const ab = new ArrayBuffer(byteString.length);
-        const ia = new Uint8Array(ab);
-        for (let i = 0; i < byteString.length; i++) {
-            ia[i] = byteString.charCodeAt(i);
-        }
-        return new Blob([ab], {type: mimeString});
-    }
 });
 </script>
 </body>
