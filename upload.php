@@ -16,6 +16,100 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 $error = "";
 $success = "";
 
+// ฟังก์ชันสำหรับการบีบอัดและย่อขนาดรูปภาพโดยใช้ GD
+function compressImage($source, $destination, $maxSize = 2 * 1024 * 1024) {
+    // รับข้อมูลของรูปภาพ
+    $info = getimagesize($source);
+    if ($info === false) {
+        return false;
+    }
+
+    $mime = $info['mime'];
+
+    // สร้างทรัพยากรรูปภาพจากไฟล์ต้นฉบับ
+    switch ($mime) {
+        case 'image/jpeg':
+            $image = imagecreatefromjpeg($source);
+            break;
+        case 'image/png':
+            $image = imagecreatefrompng($source);
+            break;
+        case 'image/gif':
+            $image = imagecreatefromgif($source);
+            break;
+        default:
+            return false;
+    }
+
+    if (!$image) {
+        return false;
+    }
+
+    // กำหนดความกว้างสูงสูงสุด (ปรับตามต้องการ)
+    $maxWidth = 1920;
+    $maxHeight = 1080;
+
+    $width = imagesx($image);
+    $height = imagesy($image);
+
+    // คำนวณอัตราส่วนการย่อขนาด
+    $scale = min($maxWidth / $width, $maxHeight / $height, 1);
+
+    $newWidth = floor($width * $scale);
+    $newHeight = floor($height * $scale);
+
+    // สร้างภาพใหม่ขนาดย่อ
+    $newImage = imagecreatetruecolor($newWidth, $newHeight);
+
+    // สำหรับ PNG และ GIF ให้รักษาความโปร่งใส
+    if ($mime === 'image/png' || $mime === 'image/gif') {
+        imagecolortransparent($newImage, imagecolorallocatealpha($newImage, 0, 0, 0, 127));
+        imagealphablending($newImage, false);
+        imagesavealpha($newImage, true);
+    }
+
+    // ย่อขนาดภาพ
+    imagecopyresampled($newImage, $image, 0, 0, 0, 0, 
+                       $newWidth, $newHeight, $width, $height);
+
+    // เริ่มจากคุณภาพสูงสุดและลดลงจนกว่าจะได้ขนาดที่ต้องการ
+    $quality = 90;
+    do {
+        // บันทึกภาพไปยังปลายทาง
+        switch ($mime) {
+            case 'image/jpeg':
+                imagejpeg($newImage, $destination, $quality);
+                break;
+            case 'image/png':
+                // สำหรับ PNG, คุณต้องแปลง quality ให้อยู่ในช่วง 0-9
+                $pngQuality = 9 - floor($quality / 10);
+                imagepng($newImage, $destination, $pngQuality);
+                break;
+            case 'image/gif':
+                imagegif($newImage, $destination);
+                break;
+        }
+
+        // ตรวจสอบขนาดไฟล์
+        $filesize = filesize($destination);
+
+        // ลดคุณภาพลงทีละ 5
+        $quality -= 5;
+
+        // หยุดถ้าคุณภาพต่ำสุดแล้ว
+        if ($quality < 10) {
+            break;
+        }
+
+    } while ($filesize > $maxSize);
+
+    // ทำลายทรัพยากรรูปภาพ
+    imagedestroy($image);
+    imagedestroy($newImage);
+
+    return $filesize <= $maxSize;
+}
+
 // เมื่อมีการส่งข้อมูลแบบ POST (อัปโหลดไฟล์)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first_folder = $_POST['first_folder'] ?? '';
@@ -90,26 +184,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $original_name = $_FILES['image']['name'];
                         $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
                         $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
-                        $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+                        $temp_target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
 
-                        // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
-                        while (file_exists($target)) {
-                            $count++;
-                            $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                            $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
-                            $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
-                        }
-
-                        // ย้ายไฟล์ (อัปโหลด)
-                        if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
-                            // บันทึก log
-                            $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
-                            file_put_contents(
-                                $config['upload_log'], 
-                                $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
-                                FILE_APPEND
-                            );
-                            $success = "อัปโหลดรูปภาพสำเร็จ";
+                        // ย้ายไฟล์ไปยังโฟลเดอร์ปลายทางชั่วคราว
+                        if (move_uploaded_file($_FILES['image']['tmp_name'], $temp_target)) {
+                            // บีบอัดและย่อขนาดรูปภาพให้มีขนาดไม่เกิน 2MB
+                            if (compressImage($temp_target, $temp_target, 2 * 1024 * 1024)) {
+                                // บันทึก log
+                                $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
+                                file_put_contents(
+                                    $config['upload_log'], 
+                                    $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
+                                    FILE_APPEND
+                                );
+                                $success = "อัปโหลดและบีบอัดรูปภาพสำเร็จ";
+                            } else {
+                                // หากบีบอัดไม่สำเร็จ อาจลบไฟล์หรือแจ้งข้อผิดพลาด
+                                unlink($temp_target);
+                                $error = "ไม่สามารถบีบอัดรูปภาพให้มีขนาดต่ำกว่า 2MB ได้";
+                            }
                         } else {
                             $error = "ไม่สามารถย้ายไฟล์ไปยังโฟลเดอร์ปลายทางได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
                         }
@@ -225,6 +318,7 @@ if (is_dir($upload_root)) {
             type="file" 
             name="image" 
             required
+            accept="image/*"
         >
         <button type="submit">อัพโหลด</button>
     </form>
@@ -367,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('upload-form').addEventListener('submit', function(e) {
         const fileInput = document.querySelector('input[name="image"]');
         const file = fileInput.files[0];
-        const maxSize = 50 * 1024 * 1024; // 50MB
+        const maxSize = 2 * 1024 * 1024; // 2MB
         
         if (file.size > maxSize) {
             e.preventDefault();
