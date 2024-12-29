@@ -2,6 +2,11 @@
 session_start();
 $config = include 'config.php';
 
+// เปิดการแสดงข้อผิดพลาดสำหรับการดีบัก
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 // ตรวจสอบสถานะการล็อกอิน
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     header("Location: login.php");
@@ -36,8 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // สร้างโฟลเดอร์หากไม่มี
         if (!is_dir($final_path)) {
-            // ถ้า mkdir ไม่สำเร็จ อาจเป็น Permission
-            @mkdir($final_path, 0777, true);
+            if (!@mkdir($final_path, 0777, true)) {
+                $error = "ไม่สามารถสร้างโฟลเดอร์ปลายทางได้ (ตรวจสอบสิทธิ์)";
+            }
         }
 
         $real_base = realpath($config['upload_directory']);
@@ -48,85 +54,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้ (path ผิด หรือ permission ไม่พอ)";
         } else {
             // ตรวจสอบไฟล์ที่อัปโหลด
-            if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
-
-                // ลบการตรวจสอบประเภทไฟล์ออกทั้งหมด
-                /*
-                // ตัวอย่างการตรวจสอบประเภทไฟล์ที่ถูกลบออก
-                $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
-
-                if (function_exists('mime_content_type')) {
-                    $file_type = mime_content_type($_FILES['image']['tmp_name']);
-                } else {
-                    $file_type = $_FILES['image']['type'];
-                }
-
-                $original_name = $_FILES['image']['name'];
-                $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
-                $allowed_ext = ['jpg','jpeg','png','gif'];
-
-                if (!in_array($extension, $allowed_ext) || !in_array($file_type, $allowed_types)) {
-                    $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif) เท่านั้น";
-                } else {
-                */
-
-                // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
-                $username = $_SESSION['username'];
-                $today = date("Ymd");
-                $count = 0; 
-                
-                // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
-                if (file_exists($config['upload_log'])) {
-                    $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                    foreach ($log_lines as $line) {
-                        // รูปแบบ log: filename|timestamp|username|folder
-                        $parts = explode("|", $line);
-                        if (count($parts) === 4) {
-                            $log_timestamp = $parts[1];
-                            $log_user = $parts[2];
-                            $log_date = date("Ymd", $log_timestamp);
-                            // หาก user ตรงกันและวันเดียวกัน
-                            if ($log_user === $username && $log_date === $today) {
-                                $count++;
+            if (isset($_FILES['image'])) {
+                $file_error = $_FILES['image']['error'];
+                if ($file_error === UPLOAD_ERR_OK) {
+                    // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
+                    $username = $_SESSION['username'];
+                    $today = date("Ymd");
+                    $count = 0; 
+                    
+                    // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
+                    if (file_exists($config['upload_log'])) {
+                        $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                        foreach ($log_lines as $line) {
+                            // รูปแบบ log: filename|timestamp|username|folder
+                            $parts = explode("|", $line);
+                            if (count($parts) === 4) {
+                                $log_timestamp = $parts[1];
+                                $log_user = $parts[2];
+                                $log_date = date("Ymd", $log_timestamp);
+                                // หาก user ตรงกันและวันเดียวกัน
+                                if ($log_user === $username && $log_date === $today) {
+                                    $count++;
+                                }
                             }
                         }
                     }
-                }
 
-                $count++;
-                $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                $original_name = $_FILES['image']['name'];
-                $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
-                $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
-                $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
-
-                // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
-                while (file_exists($target)) {
                     $count++;
                     $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
+                    $original_name = $_FILES['image']['name'];
+                    $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
                     $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
                     $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
-                }
 
-                // ย้ายไฟล์ (อัปโหลด)
-                if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
-                    // บันทึก log
-                    $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
-                    file_put_contents(
-                        $config['upload_log'], 
-                        $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
-                        FILE_APPEND
-                    );
-                    $success = "อัปโหลดรูปภาพสำเร็จ";
+                    // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
+                    while (file_exists($target)) {
+                        $count++;
+                        $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
+                        $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
+                        $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+                    }
+
+                    // ย้ายไฟล์ (อัปโหลด)
+                    if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
+                        // บันทึก log
+                        $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
+                        file_put_contents(
+                            $config['upload_log'], 
+                            $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
+                            FILE_APPEND
+                        );
+                        $success = "อัปโหลดรูปภาพสำเร็จ";
+                    } else {
+                        $error = "ไม่สามารถย้ายไฟล์ไปยังโฟลเดอร์ปลายทางได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
+                    }
                 } else {
-                    $error = "ไม่สามารถอัปโหลดไฟล์ได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
+                    // จัดการข้อผิดพลาดจาก $_FILES['image']['error']
+                    switch ($file_error) {
+                        case UPLOAD_ERR_INI_SIZE:
+                        case UPLOAD_ERR_FORM_SIZE:
+                            $error = "ไฟล์ที่อัปโหลดมีขนาดใหญ่เกินไป";
+                            break;
+                        case UPLOAD_ERR_PARTIAL:
+                            $error = "ไฟล์ถูกอัปโหลดมาไม่ครบ";
+                            break;
+                        case UPLOAD_ERR_NO_FILE:
+                            $error = "ไม่มีไฟล์ถูกอัปโหลด";
+                            break;
+                        case UPLOAD_ERR_NO_TMP_DIR:
+                            $error = "ไม่มีโฟลเดอร์ชั่วคราวบนเซิร์ฟเวอร์";
+                            break;
+                        case UPLOAD_ERR_CANT_WRITE:
+                            $error = "ไม่สามารถเขียนไฟล์ลงดิสก์ได้";
+                            break;
+                        case UPLOAD_ERR_EXTENSION:
+                            $error = "การอัปโหลดไฟล์ถูกยกเลิกโดยส่วนขยาย PHP";
+                            break;
+                        default:
+                            $error = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ (รหัสข้อผิดพลาด: $file_error)";
+                            break;
+                    }
                 }
-                // สิ้นสุดการประมวลผลโดยไม่มีการจำกัดประเภทไฟล์
-                /*
-                }
-                */
             } else {
-                $error = "กรุณาเลือกไฟล์รูปภาพ";
+                $error = "ไม่มีไฟล์ถูกส่งมา";
             }
         }
     }
