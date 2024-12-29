@@ -36,7 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // สร้างโฟลเดอร์หากไม่มี
         if (!is_dir($final_path)) {
-            mkdir($final_path, 0777, true);
+            // ถ้า mkdir ไม่สำเร็จ อาจเป็น Permission
+            @mkdir($final_path, 0777, true);
         }
 
         $real_base = realpath($config['upload_directory']);
@@ -44,20 +45,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // ตรวจสอบว่ามีโฟลเดอร์จริงหรือไม่ และอยู่ภายใต้ base
         if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
-            $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้";
+            $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้ (path ผิด หรือ permission ไม่พอ)";
         } else {
             // ตรวจสอบไฟล์ที่อัปโหลด
             if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
-                // ตรวจสอบว่าไฟล์เป็นรูปภาพจริง ๆ โดยใช้ getimagesize หรือ MIME type สำหรับ SVG
-                $image_info = getimagesize($_FILES['image']['tmp_name']);
-                $file_type = mime_content_type($_FILES['image']['tmp_name']);
 
-                // เช็คว่ามีข้อมูลจาก getimagesize หรือเป็น SVG
-                if ($image_info !== false || $file_type === 'image/svg+xml') {
-                    // ไม่จำกัดนามสกุล แต่ยังสามารถดึงนามสกุลจากชื่อไฟล์ได้
-                    $original_name = $_FILES['image']['name'];
-                    $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+                // ตรวจสอบนามสกุลไฟล์
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
 
+                // ถ้า fileinfo ยังไม่เปิด ให้เปลี่ยนเป็น $_FILES['image']['type'] ชั่วคราว
+                if (function_exists('mime_content_type')) {
+                    $file_type = mime_content_type($_FILES['image']['tmp_name']);
+                } else {
+                    $file_type = $_FILES['image']['type'];
+                }
+
+                $original_name = $_FILES['image']['name'];
+                $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+                $allowed_ext = ['jpg','jpeg','png','gif'];
+
+                if (!in_array($extension, $allowed_ext) || !in_array($file_type, $allowed_types)) {
+                    $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif) เท่านั้น";
+                } else {
                     // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
                     $username = $_SESSION['username'];
                     $today = date("Ymd");
@@ -103,12 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
                             FILE_APPEND
                         );
-                        $success = "อัพโหลดรูปภาพสำเร็จ";
+                        $success = "อัปโหลดรูปภาพสำเร็จ";
                     } else {
-                        $error = "ไม่สามารถอัพโหลดไฟล์ได้ กรุณาตรวจสอบสิทธิ์โฟลเดอร์";
+                        $error = "ไม่สามารถอัปโหลดไฟล์ได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
                     }
-                } else {
-                    $error = "กรุณาเลือกไฟล์รูปภาพ";
                 }
             } else {
                 $error = "กรุณาเลือกไฟล์รูปภาพ";
@@ -131,7 +138,7 @@ if (is_dir($upload_root)) {
             }
         }
     }
-    arsort($folder_times); // เรียงจากใหม่ไปเก่า
+    arsort($folder_times);
     $first_level_folders = array_keys($folder_times);
 }
 ?>
@@ -140,7 +147,6 @@ if (is_dir($upload_root)) {
 <head>
 <meta charset="UTF-8">
 <title>Upload รูปภาพ</title>
-<!-- รองรับการแสดงผลบนมือถือ (viewport) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
@@ -159,7 +165,6 @@ if (is_dir($upload_root)) {
         <div class="message" style="color:green;"><?php echo htmlspecialchars($success, ENT_QUOTES, 'UTF-8'); ?></div>
     <?php endif; ?>
 
-    <!-- เลือกโฟลเดอร์ระดับแรก -->
     <div>
         <label>Folders ปี:</label>
         <select id="first_select">
@@ -176,7 +181,6 @@ if (is_dir($upload_root)) {
         </select>
     </div>
 
-    <!-- เลือกโฟลเดอร์ระดับสอง -->
     <div style="margin-top:10px;">
         <label>Folders Project:</label>
         <select id="second_select" disabled>
@@ -184,20 +188,15 @@ if (is_dir($upload_root)) {
         </select>
     </div>
 
-    <!-- แสดง path ที่ผู้ใช้เลือก -->
     <div id="selected-info" style="margin-top:10px; color:blue;"></div>
-
-    <!-- แสดง path เต็ม -->
     <div id="fullpath-info" style="margin-top:10px; color:green; font-weight: bold;"></div>
     <div id="fullpath-check" style="margin-top:5px; color:red;"></div>
 
-    <!-- ฟอร์มอัปโหลดไฟล์ -->
     <form method="post" enctype="multipart/form-data" id="upload-form" style="margin-top:20px;">
         <input type="hidden" name="first_folder" value="">
         <input type="hidden" name="second_folder" value="">
 
         <label>ถ่ายรูปหรือเลือกรูปภาพ:</label>
-        <!-- เพิ่ม capture="camera" เพื่อบอกมือถือว่าให้ใช้กล้อง (หากอุปกรณ์รองรับ) -->
         <input 
             type="file" 
             name="image" 
@@ -205,7 +204,6 @@ if (is_dir($upload_root)) {
             capture="camera"
             required
         >
-
         <button type="submit">อัพโหลด</button>
     </form>
 </div>
@@ -221,7 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const firstFolderInput = document.querySelector('input[name="first_folder"]');
     const secondFolderInput = document.querySelector('input[name="second_folder"]');
 
-    // เมื่อเลือกโฟลเดอร์แรก
     firstSelect.addEventListener('change', async () => {
         const chosenFirst = firstSelect.value;
         if (!chosenFirst) {
@@ -230,7 +227,6 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedInfo.textContent = "";
             firstFolderInput.value = "";
             secondFolderInput.value = "";
-            // เคลียร์ path
             fullPathInfo.textContent = "";
             fullPathCheck.textContent = "";
             return;
@@ -244,7 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFullPathInfo();
     });
 
-    // เมื่อเลือกโฟลเดอร์ที่สอง
     secondSelect.addEventListener('change', () => {
         const chosenSecond = secondSelect.value;
         secondFolderInput.value = chosenSecond;
@@ -252,7 +247,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFullPathInfo();
     });
 
-    // ฟังก์ชันโหลด subfolder ผ่าน AJAX
     async function loadSubFolders(path) {
         const formData = new FormData();
         formData.append('path', path);
@@ -267,7 +261,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return [];
     }
 
-    // แสดงผลโฟลเดอร์ระดับสองใน select
     function renderSecondLevel(folders) {
         secondSelect.innerHTML = "";
         if (folders.length > 0) {
@@ -292,7 +285,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // อัปเดตข้อความบอกว่าเลือกโฟลเดอร์อะไร
     function updateSelectedInfo() {
         const f1 = firstFolderInput.value;
         const f2 = secondFolderInput.value;
@@ -305,7 +297,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // สร้างและแสดง path เต็ม
     function updateFullPathInfo() {
         const f1 = firstFolderInput.value;
         const f2 = secondFolderInput.value;
@@ -315,11 +306,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // path เต็ม: D:\Project Data\<first_folder>\Project\<second_folder>\Engineering\Pic\
         let base = "<?php echo addslashes($config['upload_directory']); ?>";
-        // base => D:\Project Data\
-        // เช็คว่าใน JS เราอาจต้อง replace backslash เป็น double-backslash
-        base = base.replace(/\\/g, "\\\\"); // ป้องกัน escape
+        base = base.replace(/\\/g, "\\\\"); 
 
         let fullPath = base + f1 + "\\Project\\";
         if (f2) {
@@ -329,12 +317,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fullPathInfo.textContent = "Full Path: " + fullPath;
 
-        // เรียก AJAX ไปเช็คว่ามี path นั้นจริงไหม
         checkPathExists(fullPath);
     }
 
     async function checkPathExists(fullPath) {
-        // สร้าง formData เพื่อส่ง path ไปตรวจ
         let formData = new FormData();
         formData.append('check_path', fullPath);
 
