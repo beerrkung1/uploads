@@ -152,9 +152,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $file_error = $_FILES['image']['error'];
                 if ($file_error === UPLOAD_ERR_OK) {
                     // ตรวจสอบขนาดไฟล์ในฝั่ง PHP
-                    $max_file_size = 50 * 1024 * 1024; // 50MB
+                    $max_file_size = 2 * 1024 * 1024; // 2MB
                     if ($_FILES['image']['size'] > $max_file_size) {
-                        $error = "ขนาดไฟล์เกินที่กำหนด (สูงสุด 50MB)";
+                        $error = "ขนาดไฟล์เกินที่กำหนด (สูงสุด 2MB)";
                     } else {
                         // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
                         $username = $_SESSION['username'];
@@ -465,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (file.size > maxSize) {
             e.preventDefault();
-            alert('ขนาดไฟล์เกิน 50MB กรุณาเลือกไฟล์ที่มีขนาดเล็กลง');
+            alert('ขนาดไฟล์เกิน 2MB กรุณาเลือกไฟล์ที่มีขนาดเล็กลง');
         }
     });
 });
