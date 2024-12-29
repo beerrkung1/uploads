@@ -1,9 +1,4 @@
 <?php
-// สำหรับการดีบักเท่านั้น ควรปิดใน Production
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 session_start();
 $config = include 'config.php';
 
@@ -41,173 +36,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // สร้างโฟลเดอร์หากไม่มี
         if (!is_dir($final_path)) {
-            // ถ้า mkdir ไม่สำเร็จ อาจเป็น Permission
-            if (!mkdir($final_path, 0777, true)) {
-                $error = "ไม่สามารถสร้างโฟลเดอร์ปลายทางได้ (ตรวจสอบสิทธิ์ของโฟลเดอร์)";
-            }
+            mkdir($final_path, 0777, true);
         }
 
-        // ตรวจสอบว่าโฟลเดอร์ปลายทางถูกต้องและอยู่ภายใต้ base directory
         $real_base = realpath($config['upload_directory']);
         $real_target_dir = realpath($final_path);
 
+        // ตรวจสอบว่ามีโฟลเดอร์จริงหรือไม่ และอยู่ภายใต้ base
         if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
-            $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้ (path ผิด หรือ permission ไม่พอ)";
+            $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้";
         } else {
             // ตรวจสอบไฟล์ที่อัปโหลด
             if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
-
-                // ตรวจสอบนามสกุลไฟล์
-                $allowed_ext = ['jpg','jpeg','png','gif'];
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
+                // หาก extension fileinfo ยังไม่ได้เปิด อาจใช้ $_FILES['image']['type'] แทน
+                $file_type = mime_content_type($_FILES['image']['tmp_name']);
                 $original_name = $_FILES['image']['name'];
                 $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+                $allowed_ext = ['jpg','jpeg','png','gif'];
 
-                if (!in_array($extension, $allowed_ext)) {
+                if (!in_array($extension, $allowed_ext) || !in_array($file_type, $allowed_types)) {
                     $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif) เท่านั้น";
                 } else {
-                    // ตรวจสอบประเภทของไฟล์รูปภาพ
-                    $file_type = '';
-                    if (function_exists('exif_imagetype')) {
-                        $image_type = exif_imagetype($_FILES['image']['tmp_name']);
-                        $mime_types = [
-                            IMAGETYPE_JPEG => 'image/jpeg',
-                            IMAGETYPE_PNG => 'image/png',
-                            IMAGETYPE_GIF => 'image/gif',
-                            IMAGETYPE_WEBP => 'image/webp'
-                        ];
-                        $file_type = $mime_types[$image_type] ?? '';
-                    } elseif (function_exists('mime_content_type')) {
-                        $file_type = mime_content_type($_FILES['image']['tmp_name']);
-                    } else {
-                        // ถ้าไม่มีทั้ง exif_imagetype และ mime_content_type ใช้ $_FILES['type']
-                        $file_type = $_FILES['image']['type'];
-                    }
-
-                    // เพิ่ม MIME Type ที่อาจพบจากมือถือ
-                    $allowed_types = [
-                        'image/jpeg',
-                        'image/png',
-                        'image/gif',
-                        'image/x-png',    // เพิ่มกรณีบางมือถือ
-                        'image/webp',     // รองรับ WebP
-                        'image/heic',     // ถ้ามือถือส่งเป็น HEIC
-                        'image/heif'      // รองรับ HEIF
-                    ];
-
-                    // ตรวจสอบว่า MIME Type ถูกอนุญาตหรือไม่
-                    if (!in_array($file_type, $allowed_types)) {
-                        $error = "อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif) เท่านั้น";
-                    } else {
-                        // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
-                        $username = $_SESSION['username'];
-                        $today = date("Ymd");
-                        $count = 0; 
-                        
-                        // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
-                        if (file_exists($config['upload_log'])) {
-                            $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                            foreach ($log_lines as $line) {
-                                // รูปแบบ log: filename|timestamp|username|folder
-                                $parts = explode("|", $line);
-                                if (count($parts) === 4) {
-                                    $log_timestamp = $parts[1];
-                                    $log_user = $parts[2];
-                                    $log_date = date("Ymd", $log_timestamp);
-                                    // หาก user ตรงกันและวันเดียวกัน
-                                    if ($log_user === $username && $log_date === $today) {
-                                        $count++;
-                                    }
+                    // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
+                    $username = $_SESSION['username'];
+                    $today = date("Ymd");
+                    $count = 0; 
+                    
+                    // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
+                    if (file_exists($config['upload_log'])) {
+                        $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                        foreach ($log_lines as $line) {
+                            // รูปแบบ log: filename|timestamp|username|folder
+                            $parts = explode("|", $line);
+                            if (count($parts) === 4) {
+                                $log_timestamp = $parts[1];
+                                $log_user = $parts[2];
+                                $log_date = date("Ymd", $log_timestamp);
+                                // หาก user ตรงกันและวันเดียวกัน
+                                if ($log_user === $username && $log_date === $today) {
+                                    $count++;
                                 }
                             }
                         }
+                    }
 
+                    $count++;
+                    $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
+                    $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
+                    $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+
+                    // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
+                    while (file_exists($target)) {
                         $count++;
                         $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
                         $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
                         $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+                    }
 
-                        // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
-                        while (file_exists($target)) {
-                            $count++;
-                            $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                            $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
-                            $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
-                        }
-
-                        // ย้ายไฟล์ (อัปโหลด)
-                        if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
-                            // บันทึก log
-                            $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
-                            file_put_contents(
-                                $config['upload_log'], 
-                                $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
-                                FILE_APPEND
-                            );
-                            $success = "อัปโหลดรูปภาพสำเร็จ";
-                        } else {
-                            // เพิ่มการล็อก Error สำหรับ debugging
-                            error_log("ไม่สามารถย้ายไฟล์จาก " . $_FILES['image']['tmp_name'] . " ไปยัง " . $target);
-                            $error = "ไม่สามารถอัปโหลดไฟล์ได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
-                        }
+                    // ย้ายไฟล์ (อัปโหลด)
+                    if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
+                        // บันทึก log
+                        $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
+                        file_put_contents(
+                            $config['upload_log'], 
+                            $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
+                            FILE_APPEND
+                        );
+                        $success = "อัพโหลดรูปภาพสำเร็จ";
+                    } else {
+                        $error = "ไม่สามารถอัพโหลดไฟล์ได้ กรุณาตรวจสอบสิทธิ์โฟลเดอร์";
                     }
                 }
             } else {
-                // ตรวจสอบว่าเกิด Error อะไรในการอัปโหลด
-                if (isset($_FILES['image']['error'])) {
-                    switch ($_FILES['image']['error']) {
-                        case UPLOAD_ERR_INI_SIZE:
-                        case UPLOAD_ERR_FORM_SIZE:
-                            $error = "ไฟล์ใหญ่เกินขนาดที่กำหนด";
-                            break;
-                        case UPLOAD_ERR_PARTIAL:
-                            $error = "ไฟล์ถูกอัปโหลดมาไม่สมบูรณ์";
-                            break;
-                        case UPLOAD_ERR_NO_FILE:
-                            $error = "กรุณาเลือกไฟล์รูปภาพ";
-                            break;
-                        case UPLOAD_ERR_NO_TMP_DIR:
-                            $error = "ไม่มีโฟลเดอร์ชั่วคราวสำหรับอัปโหลด";
-                            break;
-                        case UPLOAD_ERR_CANT_WRITE:
-                            $error = "ไม่สามารถเขียนไฟล์ไปยังดิสก์ได้";
-                            break;
-                        case UPLOAD_ERR_EXTENSION:
-                            $error = "การอัปโหลดถูกหยุดโดย extension";
-                            break;
-                        default:
-                            $error = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์";
-                            break;
-                    }
-                } else {
-                    $error = "ไม่สามารถอัปโหลดไฟล์ได้";
-                }
+                $error = "กรุณาเลือกไฟล์รูปภาพ";
             }
         }
     }
+}
 
-    // โหลดโฟลเดอร์ระดับแรกจาก D:\Project Data\ และเรียงจากใหม่ไปเก่า
-    $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    $first_level_folders = [];
-    if (is_dir($upload_root)) {
-        $dirs = scandir($upload_root);
-        $folder_times = [];
-        foreach ($dirs as $d) {
-            if ($d !== '.' && $d !== '..') {
-                $path = $upload_root . $d;
-                if (is_dir($path)) {
-                    $folder_times[$d] = filemtime($path);
-                }
+// โหลดโฟลเดอร์ระดับแรกจาก D:\Project Data\ และเรียงจากใหม่ไปเก่า
+$upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+$first_level_folders = [];
+if (is_dir($upload_root)) {
+    $dirs = scandir($upload_root);
+    $folder_times = [];
+    foreach ($dirs as $d) {
+        if ($d !== '.' && $d !== '..') {
+            $path = $upload_root . $d;
+            if (is_dir($path)) {
+                $folder_times[$d] = filemtime($path);
             }
         }
-        arsort($folder_times);
-        $first_level_folders = array_keys($folder_times);
     }
+    arsort($folder_times); // เรียงจากใหม่ไปเก่า
+    $first_level_folders = array_keys($folder_times);
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
 <title>Upload รูปภาพ</title>
+<!-- รองรับการแสดงผลบนมือถือ (viewport) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
@@ -226,6 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="message" style="color:green;"><?php echo htmlspecialchars($success, ENT_QUOTES, 'UTF-8'); ?></div>
     <?php endif; ?>
 
+    <!-- เลือกโฟลเดอร์ระดับแรก -->
     <div>
         <label>Folders ปี:</label>
         <select id="first_select">
@@ -242,6 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </select>
     </div>
 
+    <!-- เลือกโฟลเดอร์ระดับสอง -->
     <div style="margin-top:10px;">
         <label>Folders Project:</label>
         <select id="second_select" disabled>
@@ -249,15 +182,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </select>
     </div>
 
+    <!-- แสดง path ที่ผู้ใช้เลือก -->
     <div id="selected-info" style="margin-top:10px; color:blue;"></div>
+
+    <!-- แสดง path เต็ม -->
     <div id="fullpath-info" style="margin-top:10px; color:green; font-weight: bold;"></div>
     <div id="fullpath-check" style="margin-top:5px; color:red;"></div>
 
+    <!-- ฟอร์มอัปโหลดไฟล์ -->
     <form method="post" enctype="multipart/form-data" id="upload-form" style="margin-top:20px;">
         <input type="hidden" name="first_folder" value="">
         <input type="hidden" name="second_folder" value="">
 
         <label>ถ่ายรูปหรือเลือกรูปภาพ:</label>
+        <!-- เพิ่ม capture="camera" เพื่อบอกมือถือว่าให้ใช้กล้อง (หากอุปกรณ์รองรับ) -->
         <input 
             type="file" 
             name="image" 
@@ -265,6 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             capture="camera"
             required
         >
+
         <button type="submit">อัพโหลด</button>
     </form>
 </div>
@@ -280,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const firstFolderInput = document.querySelector('input[name="first_folder"]');
     const secondFolderInput = document.querySelector('input[name="second_folder"]');
 
+    // เมื่อเลือกโฟลเดอร์แรก
     firstSelect.addEventListener('change', async () => {
         const chosenFirst = firstSelect.value;
         if (!chosenFirst) {
@@ -288,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedInfo.textContent = "";
             firstFolderInput.value = "";
             secondFolderInput.value = "";
+            // เคลียร์ path
             fullPathInfo.textContent = "";
             fullPathCheck.textContent = "";
             return;
@@ -301,6 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFullPathInfo();
     });
 
+    // เมื่อเลือกโฟลเดอร์ที่สอง
     secondSelect.addEventListener('change', () => {
         const chosenSecond = secondSelect.value;
         secondFolderInput.value = chosenSecond;
@@ -308,6 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFullPathInfo();
     });
 
+    // ฟังก์ชันโหลด subfolder ผ่าน AJAX
     async function loadSubFolders(path) {
         const formData = new FormData();
         formData.append('path', path);
@@ -322,6 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return [];
     }
 
+    // แสดงผลโฟลเดอร์ระดับสองใน select
     function renderSecondLevel(folders) {
         secondSelect.innerHTML = "";
         if (folders.length > 0) {
@@ -346,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // อัปเดตข้อความบอกว่าเลือกโฟลเดอร์อะไร
     function updateSelectedInfo() {
         const f1 = firstFolderInput.value;
         const f2 = secondFolderInput.value;
@@ -358,6 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // สร้างและแสดง path เต็ม
     function updateFullPathInfo() {
         const f1 = firstFolderInput.value;
         const f2 = secondFolderInput.value;
@@ -367,8 +313,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // path เต็ม: D:\Project Data\<first_folder>\Project\<second_folder>\Engineering\Pic\
         let base = "<?php echo addslashes($config['upload_directory']); ?>";
-        base = base.replace(/\\/g, "\\\\"); 
+        // base => D:\Project Data\
+        // เช็คว่าใน JS เราอาจต้อง replace backslash เป็น double-backslash
+        base = base.replace(/\\/g, "\\\\"); // ป้องกัน escape
 
         let fullPath = base + f1 + "\\Project\\";
         if (f2) {
@@ -378,10 +327,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fullPathInfo.textContent = "Full Path: " + fullPath;
 
+        // เรียก AJAX ไปเช็คว่ามี path นั้นจริงไหม
         checkPathExists(fullPath);
     }
 
     async function checkPathExists(fullPath) {
+        // สร้าง formData เพื่อส่ง path ไปตรวจ
         let formData = new FormData();
         formData.append('check_path', fullPath);
 
