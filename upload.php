@@ -11,6 +11,35 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 $error = "";
 $success = "";
 
+// ฟังก์ชันสำหรับแปลงรูปภาพเป็น PNG
+function convertToPNG($source, $destination, $file_type) {
+    switch ($file_type) {
+        case 'image/jpeg':
+            $image = imagecreatefromjpeg($source);
+            break;
+        case 'image/gif':
+            $image = imagecreatefromgif($source);
+            break;
+        case 'image/png':
+            // ถ้าเป็น PNG อยู่แล้ว ไม่ต้องแปลง
+            return false;
+        default:
+            return false;
+    }
+
+    if (!$image) {
+        return false;
+    }
+
+    // บันทึกรูปภาพเป็น PNG
+    $result = imagepng($image, $destination);
+
+    // ทำลายทรัพยากรของรูปภาพ
+    imagedestroy($image);
+
+    return $result;
+}
+
 // เมื่อมีการส่งข้อมูลแบบ POST (อัปโหลดไฟล์)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first_folder = $_POST['first_folder'] ?? '';
@@ -92,19 +121,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $count++;
                     $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                    $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
+                    $new_filename = "{$today}-{$username}-{$seq}.png"; // เปลี่ยนเป็น .png
                     $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
 
                     // กรณีมีชื่อซ้ำ (โอกาสน้อยมาก)
                     while (file_exists($target)) {
                         $count++;
                         $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                        $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
+                        $new_filename = "{$today}-{$username}-{$seq}.png"; // เปลี่ยนเป็น .png
                         $target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
                     }
 
-                    // ย้ายไฟล์ (อัปโหลด)
-                    if (move_uploaded_file($_FILES['image']['tmp_name'], $target)) {
+                    // แปลงไฟล์เป็น PNG
+                    $conversion_result = convertToPNG($_FILES['image']['tmp_name'], $target, $file_type);
+
+                    if ($conversion_result) {
                         // บันทึก log
                         $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
                         file_put_contents(
@@ -112,9 +143,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
                             FILE_APPEND
                         );
-                        $success = "อัปโหลดรูปภาพสำเร็จ";
+                        $success = "อัปโหลดและแปลงรูปภาพเป็น PNG สำเร็จ";
                     } else {
-                        $error = "ไม่สามารถอัปโหลดไฟล์ได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
+                        // ถ้าไม่สามารถแปลงได้ อาจจะบันทึกเป็นไฟล์ต้นฉบับ หรือแจ้งข้อผิดพลาด
+                        $error = "ไม่สามารถแปลงไฟล์เป็น PNG ได้";
                     }
                 }
             } else {
