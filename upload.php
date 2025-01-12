@@ -467,10 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = fileInput.files[0];
         const maxSize = 2 * 1024 * 1024; // 2MB
         
-        if (file.size > maxSize) {
-            e.preventDefault();
-            alert('ขนาดไฟล์เกิน 2MB กรุณาเลือกไฟล์ที่มีขนาดเล็กลง');
-        }
+      
     });
 });
 </script>
