@@ -266,7 +266,6 @@ if (is_dir($upload_root)) {
 ?>
 <!DOCTYPE html>
 <html lang="th">
-Test
 <head>
 <meta charset="UTF-8">
 <title>Upload รูปภาพ</title>
@@ -307,7 +306,7 @@ Test
     <div style="margin-top:10px;">
         <label>Folders Project:</label>
         <select id="second_select" disabled>
-            <option value="">-กรุณาเลือก Project-</option>
+            <option value="">กรุณาเลือก Project</option>
         </select>
     </div>
 
