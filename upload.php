@@ -1,4 +1,4 @@
-
+Test
 <?php
 session_start();
 $config = include 'config.php';
