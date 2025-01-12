@@ -1,4 +1,4 @@
-TEST
+
 <?php
 session_start();
 $config = include 'config.php';
@@ -266,6 +266,7 @@ if (is_dir($upload_root)) {
 ?>
 <!DOCTYPE html>
 <html lang="th">
+Test
 <head>
 <meta charset="UTF-8">
 <title>Upload รูปภาพ</title>
