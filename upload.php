@@ -17,6 +17,7 @@ $error = "";
 $success = "";
 
 // ฟังก์ชันสำหรับการบีบอัดและย่อขนาดรูปภาพโดยใช้ GD
+// ปรับให้ย่อขนาดรูปภาพโดยที่ความสูงจะไม่เกิน 1000px
 function compressImage($source, $destination, $maxSize = 2 * 1024 * 1024) {
     // รับข้อมูลของรูปภาพ
     $info = getimagesize($source);
@@ -45,15 +46,19 @@ function compressImage($source, $destination, $maxSize = 2 * 1024 * 1024) {
         return false;
     }
 
-    // กำหนดความกว้างสูงสูงสุด (ปรับตามต้องการ)
-    $maxWidth = 1920;
-    $maxHeight = 1080;
+    // กำหนดความสูงสูงสุดที่ 1000px (สามารถปรับแก้ได้ตามที่ต้องการ)
+    $maxHeight = 1000;
+    // หากต้องการให้มีการควบคุมความกว้างเพิ่มเติม เช่น สูงสุด 1920px สามารถกำหนดได้เช่น:
+    // $maxWidth = 1920;
 
     $width = imagesx($image);
     $height = imagesy($image);
 
-    // คำนวณอัตราส่วนการย่อขนาด
-    $scale = min($maxWidth / $width, $maxHeight / $height, 1);
+    // คำนวณอัตราส่วนการย่อขนาด โดยคำนึงถึงความสูง
+    $scale = min($maxHeight / $height, 1);
+
+    // หากต้องการคำนวณทั้งความกว้างและความสูงให้ใช้:
+    // $scale = min($maxWidth / $width, $maxHeight / $height, 1);
 
     $newWidth = floor($width * $scale);
     $newHeight = floor($height * $scale);
@@ -81,7 +86,7 @@ function compressImage($source, $destination, $maxSize = 2 * 1024 * 1024) {
                 imagejpeg($newImage, $destination, $quality);
                 break;
             case 'image/png':
-                // สำหรับ PNG, คุณต้องแปลง quality ให้อยู่ในช่วง 0-9
+                // quality ใน imagepng อยู่ในช่วง 0-9 (0 = คุณภาพดีที่สุด, 9 = แย่ที่สุด)
                 $pngQuality = 9 - floor($quality / 10);
                 imagepng($newImage, $destination, $pngQuality);
                 break;
@@ -100,7 +105,6 @@ function compressImage($source, $destination, $maxSize = 2 * 1024 * 1024) {
         if ($quality < 10) {
             break;
         }
-
     } while ($filesize > $maxSize);
 
     // ทำลายทรัพยากรรูปภาพ
@@ -269,7 +273,7 @@ if (is_dir($upload_root)) {
 </head>
 <body>
 <div class="container">
-    <h1>อัพโหลดรูปภาพ</h1>
+    <h1>อัปโหลดรูปภาพ</h1>
     <div class="nav-links">
         <a href="dashboard.php">ย้อนกลับ</a> 
         <a href="logout.php">ออกจากระบบ</a>
@@ -301,7 +305,7 @@ if (is_dir($upload_root)) {
     <div style="margin-top:10px;">
         <label>Folders Project:</label>
         <select id="second_select" disabled>
-            <option value="">-กรุณาเลือกProject-</option>
+            <option value="">-กรุณาเลือก Project-</option>
         </select>
     </div>
 
@@ -320,7 +324,7 @@ if (is_dir($upload_root)) {
             required
             accept="image/*"
         >
-        <button type="submit">อัพโหลด</button>
+        <button type="submit">อัปโหลด</button>
     </form>
 </div>
 
@@ -338,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
     firstSelect.addEventListener('change', async () => {
         const chosenFirst = firstSelect.value;
         if (!chosenFirst) {
-            secondSelect.innerHTML = '<option value="">-กรุณาเลือกProject-</option>';
+            secondSelect.innerHTML = '<option value="">-กรุณาเลือก Project-</option>';
             secondSelect.disabled = true;
             selectedInfo.textContent = "";
             firstFolderInput.value = "";
@@ -382,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (folders.length > 0) {
             let defaultOpt = document.createElement('option');
             defaultOpt.value = "";
-            defaultOpt.textContent = "-กรุณาเลือกProject-";
+            defaultOpt.textContent = "-กรุณาเลือก Project-";
             secondSelect.appendChild(defaultOpt);
 
             folders.forEach(f => {
@@ -457,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // เพิ่มการตรวจสอบขนาดไฟล์ในฝั่งไคลเอนต์
+    // ตรวจสอบขนาดไฟล์ในฝั่งไคลเอนต์ (ก่อนส่งฟอร์ม)
     document.getElementById('upload-form').addEventListener('submit', function(e) {
         const fileInput = document.querySelector('input[name="image"]');
         const file = fileInput.files[0];
