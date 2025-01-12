@@ -158,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // ตรวจสอบขนาดไฟล์ในฝั่ง PHP
                     $max_file_size = 2 * 1024 * 1024; // 2MB
                     if ($_FILES['image']['size'] > $max_file_size) {
-                        $error = "ขนาดไฟล์เกินที่กำหนด (สูงสุด 2MB)";
+                        $error = "";
                     } else {
                         // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
                         $username = $_SESSION['username'];
