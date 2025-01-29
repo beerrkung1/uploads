@@ -38,26 +38,6 @@ usort($uploads, function($a, $b) {
 <title>Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="assets/css/style.css">
-<style>
-    .upload-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid #ccc;
-        padding: 10px 0;
-    }
-    .upload-details {
-        flex: 1;
-    }
-    .upload-thumbnail img {
-        max-width: 100px;
-        max-height: 100px;
-        margin-left: 20px;
-    }
-    .upload-thumbnail {
-        flex-shrink: 0;
-    }
-</style>
 </head>
 <body>
 <div class="container">
@@ -73,32 +53,20 @@ usort($uploads, function($a, $b) {
     <?php if (empty($uploads)): ?>
         <p>ยังไม่มีการอัพโหลด</p>
     <?php else: ?>
-        <div class="upload-list">
+        <ul>
             <?php foreach ($uploads as $up): ?>
-                <div class="upload-item">
-                    <div class="upload-details">
-                        <strong>ไฟล์:</strong> <?php echo htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8'); ?><br>
-                        <strong>โฟลเดอร์:</strong> <?php echo htmlspecialchars($up['folder'], ENT_QUOTES, 'UTF-8'); ?><br>
-                        <strong>อัพโหลดโดย:</strong> <?php echo htmlspecialchars($up['username'], ENT_QUOTES, 'UTF-8'); ?><br>
-                        <strong>อัพโหลดเมื่อ:</strong> <?php echo date("Y-m-d H:i:s", $up['timestamp']); ?>
-                    </div>
-                    <div class="upload-thumbnail">
-                        <?php
-                        // สร้าง URL สำหรับรูปภาพ
-                        $imageUrl = $config['upload_url'] . $up['folder'] . '/' . rawurlencode($up['filename']);
-                        // ตรวจสอบว่าไฟล์เป็นภาพหรือไม่
-                        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
-                        $fileExtension = strtolower(pathinfo($up['filename'], PATHINFO_EXTENSION));
-                        if (in_array($fileExtension, $imageExtensions)) {
-                            echo '<img src="' . htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') . '" alt="' . htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8') . '">';
-                        } else {
-                            echo '<span>ไม่สามารถแสดงตัวอย่าง</span>';
-                        }
-                        ?>
-                    </div>
-                </div>
+                <li>
+                    <strong>ไฟล์:</strong> <?php echo htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <strong>โฟลเดอร์:</strong> <?php echo htmlspecialchars($up['folder'], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <strong>อัพโหลดโดย:</strong> <?php echo htmlspecialchars($up['username'], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <strong>อัพโหลดเมื่อ:</strong> <?php echo date("Y-m-d H:i:s", $up['timestamp']); ?><br>
+                    <!-- หากต้องการแสดงรูปจาก Virtual Directory เช่น http://your-domain/ProjectData/ -->
+                    <!-- <img src="http://your-domain/ProjectData/<?php echo rawurlencode(str_replace('\\','/',$up['folder'] . '/' . $up['filename'])); ?>" 
+                         alt="<?php echo htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8'); ?>"
+                         style="max-width:200px;"> -->
+                </li>
             <?php endforeach; ?>
-        </div>
+        </ul>
     <?php endif; ?>
 </div>
 </body>
