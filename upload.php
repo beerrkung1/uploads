@@ -17,7 +17,6 @@ $error = "";
 $success = "";
 
 // ฟังก์ชันสำหรับการบีบอัดและย่อขนาดรูปภาพโดยใช้ GD
-// ปรับให้ย่อขนาดรูปภาพโดยที่ความสูงจะไม่เกิน 1000px
 function compressImage($source, $destination, $maxSize = 2 * 1024 * 1024) {
     // รับข้อมูลของรูปภาพ
     $info = getimagesize($source);
@@ -46,47 +45,49 @@ function compressImage($source, $destination, $maxSize = 2 * 1024 * 1024) {
         return false;
     }
 
-    // กำหนดความสูงสูงสุดที่ 1000px (สามารถปรับแก้ได้ตามที่ต้องการ)
+    // กำหนดความสูงสูงสุดที่ 1000px (แก้ไขตามต้องการ)
     $maxHeight = 1000;
-    // หากต้องการให้มีการควบคุมความกว้างเพิ่มเติม เช่น สูงสุด 1920px สามารถกำหนดได้เช่น:
-    // $maxWidth = 1920;
-
     $width = imagesx($image);
     $height = imagesy($image);
 
-    // คำนวณอัตราส่วนการย่อขนาด โดยคำนึงถึงความสูง
+    // คำนวณอัตราส่วนย่อขนาด (ดูแค่ความสูง)
     $scale = min($maxHeight / $height, 1);
-
-    // หากต้องการคำนวณทั้งความกว้างและความสูงให้ใช้:
-    // $scale = min($maxWidth / $width, $maxHeight / $height, 1);
-
     $newWidth = floor($width * $scale);
     $newHeight = floor($height * $scale);
 
     // สร้างภาพใหม่ขนาดย่อ
     $newImage = imagecreatetruecolor($newWidth, $newHeight);
 
-    // สำหรับ PNG และ GIF ให้รักษาความโปร่งใส
+    // สำหรับ PNG, GIF ให้รักษาความโปร่งใส
     if ($mime === 'image/png' || $mime === 'image/gif') {
-        imagecolortransparent($newImage, imagecolorallocatealpha($newImage, 0, 0, 0, 127));
+        imagecolortransparent(
+            $newImage, 
+            imagecolorallocatealpha($newImage, 0, 0, 0, 127)
+        );
         imagealphablending($newImage, false);
         imagesavealpha($newImage, true);
     }
 
     // ย่อขนาดภาพ
-    imagecopyresampled($newImage, $image, 0, 0, 0, 0, 
-                       $newWidth, $newHeight, $width, $height);
+    imagecopyresampled(
+        $newImage, 
+        $image, 
+        0, 0, 0, 0, 
+        $newWidth, 
+        $newHeight, 
+        $width, 
+        $height
+    );
 
-    // เริ่มจากคุณภาพสูงสุดและลดลงจนกว่าจะได้ขนาดที่ต้องการ
+    // วนลดคุณภาพไปเรื่อย ๆ จนกว่าจะ <= $maxSize หรือ quality < 10
     $quality = 90;
     do {
-        // บันทึกภาพไปยังปลายทาง
         switch ($mime) {
             case 'image/jpeg':
                 imagejpeg($newImage, $destination, $quality);
                 break;
             case 'image/png':
-                // quality ใน imagepng อยู่ในช่วง 0-9 (0 = คุณภาพดีที่สุด, 9 = แย่ที่สุด)
+                // imagepng ใช้ quality 0-9 (0=ดีที่สุด)
                 $pngQuality = 9 - floor($quality / 10);
                 imagepng($newImage, $destination, $pngQuality);
                 break;
@@ -95,26 +96,20 @@ function compressImage($source, $destination, $maxSize = 2 * 1024 * 1024) {
                 break;
         }
 
-        // ตรวจสอบขนาดไฟล์
         $filesize = filesize($destination);
-
-        // ลดคุณภาพลงทีละ 5
         $quality -= 5;
-
-        // หยุดถ้าคุณภาพต่ำสุดแล้ว
         if ($quality < 10) {
             break;
         }
     } while ($filesize > $maxSize);
 
-    // ทำลายทรัพยากรรูปภาพ
     imagedestroy($image);
     imagedestroy($newImage);
 
     return $filesize <= $maxSize;
 }
 
-// เมื่อมีการส่งข้อมูลแบบ POST (อัปโหลดไฟล์)
+// เมื่อมีการส่งข้อมูลแบบ POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first_folder = $_POST['first_folder'] ?? '';
     $second_folder = $_POST['second_folder'] ?? '';
@@ -147,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $real_base = realpath($config['upload_directory']);
         $real_target_dir = realpath($final_path);
 
-        // ตรวจสอบว่ามีโฟลเดอร์จริงหรือไม่ และอยู่ภายใต้ base
+        // ตรวจสอบว่า path ปลายทางอยู่ภายใต้ base จริงหรือไม่
         if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
             $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้ (path ผิด หรือ permission ไม่พอ)";
         } else {
@@ -155,68 +150,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($_FILES['image'])) {
                 $file_error = $_FILES['image']['error'];
                 if ($file_error === UPLOAD_ERR_OK) {
-                    // ตรวจสอบขนาดไฟล์ในฝั่ง PHP
-                    $max_file_size = 2 * 1024 * 1024; // 2MB
-                    if ($_FILES['image']['size'] > $max_file_size) {
-                        $error = "";
-                    } else {
-                        // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
-                        $username = $_SESSION['username'];
-                        $today = date("Ymd");
-                        $count = 0; 
-                        
-                        // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
-                        if (file_exists($config['upload_log'])) {
-                            $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                            foreach ($log_lines as $line) {
-                                // รูปแบบ log: filename|timestamp|username|folder
-                                $parts = explode("|", $line);
-                                if (count($parts) === 4) {
-                                    $log_timestamp = $parts[1];
-                                    $log_user = $parts[2];
-                                    $log_date = date("Ymd", $log_timestamp);
-                                    // หาก user ตรงกันและวันเดียวกัน
-                                    if ($log_user === $username && $log_date === $today) {
-                                        $count++;
-                                    }
+                    // *** ตัดการตรวจสอบขนาดไฟล์ก่อนอัปโหลดออกไป ***
+                    // เริ่มการตั้งชื่อไฟล์
+                    $username = $_SESSION['username'];
+                    $today = date("Ymd");
+                    $count = 0; 
+                    
+                    // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
+                    if (file_exists($config['upload_log'])) {
+                        $log_lines = file(
+                            $config['upload_log'], 
+                            FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES
+                        );
+                        foreach ($log_lines as $line) {
+                            $parts = explode("|", $line);
+                            if (count($parts) === 4) {
+                                $log_timestamp = $parts[1];
+                                $log_user = $parts[2];
+                                $log_date = date("Ymd", $log_timestamp);
+                                if ($log_user === $username && $log_date === $today) {
+                                    $count++;
                                 }
                             }
                         }
+                    }
 
-                        $count++;
-                        $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                        $original_name = $_FILES['image']['name'];
-                        $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
-                        $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
-                        $temp_target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+                    $count++;
+                    $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
+                    $original_name = $_FILES['image']['name'];
+                    $extension = strtolower(
+                        pathinfo($original_name, PATHINFO_EXTENSION)
+                    );
+                    $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
 
-                        // ย้ายไฟล์ไปยังโฟลเดอร์ปลายทางชั่วคราว
-                        if (move_uploaded_file($_FILES['image']['tmp_name'], $temp_target)) {
-                            // บีบอัดและย่อขนาดรูปภาพให้มีขนาดไม่เกิน 2MB
-                            if (compressImage($temp_target, $temp_target, 2 * 1024 * 1024)) {
-                                // บันทึก log
-                                $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
-                                file_put_contents(
-                                    $config['upload_log'], 
-                                    $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
-                                    FILE_APPEND
-                                );
-                                $success = "อัปโหลดและบีบอัดรูปภาพสำเร็จ";
-                            } else {
-                                // หากบีบอัดไม่สำเร็จ อาจลบไฟล์หรือแจ้งข้อผิดพลาด
-                                unlink($temp_target);
-                                $error = "ไม่สามารถบีบอัดรูปภาพให้มีขนาดต่ำกว่า 2MB ได้";
-                            }
+                    $temp_target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+
+                    // ย้ายไฟล์ไปยังโฟลเดอร์ปลายทาง
+                    if (move_uploaded_file($_FILES['image']['tmp_name'], $temp_target)) {
+                        // บีบอัดและย่อขนาดรูปภาพให้มีขนาดไม่เกิน 2MB
+                        if (compressImage($temp_target, $temp_target, 2 * 1024 * 1024)) {
+                            // บันทึก log
+                            $chosen_path = $first_folder 
+                                         . "\\Project\\" 
+                                         . $second_folder 
+                                         . "\\Engineering\\Pic";
+                            file_put_contents(
+                                $config['upload_log'], 
+                                $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
+                                FILE_APPEND
+                            );
+                            $success = "อัปโหลดและบีบอัดรูปภาพสำเร็จ";
                         } else {
-                            $error = "ไม่สามารถย้ายไฟล์ไปยังโฟลเดอร์ปลายทางได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
+                            // หากบีบอัดไม่สำเร็จ
+                            unlink($temp_target);
+                            $error = "ไม่สามารถบีบอัดรูปภาพให้มีขนาดต่ำกว่า 2MB ได้";
                         }
+                    } else {
+                        $error = "ไม่สามารถย้ายไฟล์ไปยังโฟลเดอร์ปลายทางได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
                     }
                 } else {
                     // จัดการข้อผิดพลาดจาก $_FILES['image']['error']
                     switch ($file_error) {
                         case UPLOAD_ERR_INI_SIZE:
                         case UPLOAD_ERR_FORM_SIZE:
-                            $error = "ไฟล์ที่อัปโหลดมีขนาดใหญ่เกินไป";
+                            $error = "ไฟล์ที่อัปโหลดมีขนาดใหญ่เกินกำหนดใน php.ini / form";
                             break;
                         case UPLOAD_ERR_PARTIAL:
                             $error = "ไฟล์ถูกอัปโหลดมาไม่ครบ";
@@ -234,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $error = "การอัปโหลดไฟล์ถูกยกเลิกโดยส่วนขยาย PHP";
                             break;
                         default:
-                            $error = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ (รหัสข้อผิดพลาด: $file_error)";
+                            $error = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ (รหัส: $file_error)";
                             break;
                     }
                 }
@@ -245,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// โหลดโฟลเดอร์ระดับแรกจาก D:\Project Data\ และเรียงจากใหม่ไปเก่า
+// โหลดโฟลเดอร์ระดับแรก
 $upload_root = rtrim($config['upload_directory'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 $first_level_folders = [];
 if (is_dir($upload_root)) {
@@ -436,7 +433,6 @@ document.addEventListener('DOMContentLoaded', () => {
         fullPath += "Engineering\\Pic\\";
 
         fullPathInfo.textContent = "Full Path: " + fullPath;
-
         checkPathExists(fullPath);
     }
 
@@ -461,14 +457,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ตรวจสอบขนาดไฟล์ในฝั่งไคลเอนต์ (ก่อนส่งฟอร์ม)
-    document.getElementById('upload-form').addEventListener('submit', function(e) {
-        const fileInput = document.querySelector('input[name="image"]');
-        const file = fileInput.files[0];
-        const maxSize = 2 * 1024 * 1024; // 2MB
-        
-      
-    });
+    // *** ตัดส่วนตรวจสอบขนาดไฟล์ในฝั่งไคลเอนต์ทิ้ง (หากไม่ต้องการตรวจ) ***
+    // document.getElementById('upload-form').addEventListener('submit', function(e) {
+    //     ...
+    // });
 });
 </script>
 </body>
