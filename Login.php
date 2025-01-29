@@ -1,4 +1,3 @@
-e3r3r
 <?php
 session_start();
 $config = include 'config.php';
