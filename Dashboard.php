@@ -51,16 +51,6 @@ $offset = ($currentPage - 1) * $perPage;
 
 // ตัดรายการสำหรับหน้าปัจจุบัน
 $currentUploads = array_slice($uploads, $offset, $perPage);
-
-// ฟังก์ชันสำหรับสร้าง URL ของรูปภาพ
-function getImageUrl($folder, $filename) {
-    // ปรับให้ตรงกับ URL ของคุณ
-    // ตัวอย่าง: http://your-domain/ProjectData/<folder>/<filename>
-    // สมมติว่าโฟลเดอร์ใน upload_log เป็นเส้นทางสัมพัทธ์จากโฟลเดอร์ ProjectData
-    $baseUrl = 'http://your-domain/ProjectData/'; // ปรับตามโดเมนของคุณ
-    $relativePath = str_replace('\\', '/', $folder) . '/' . rawurlencode($filename);
-    return $baseUrl . $relativePath;
-}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -70,7 +60,7 @@ function getImageUrl($folder, $filename) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="assets/css/style.css">
 <style>
-    /* สไตล์สำหรับการแบ่งหน้า */
+    /* เพิ่มสไตล์สำหรับการแบ่งหน้า */
     .pagination {
         margin-top: 20px;
         text-align: center;
@@ -97,22 +87,6 @@ function getImageUrl($folder, $filename) {
         border-color: #ddd;
         pointer-events: none;
     }
-    /* สไตล์สำหรับรูปภาพ Thumbnail */
-    .thumbnail {
-        max-width: 150px;
-        max-height: 150px;
-        object-fit: cover;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-    }
-    .upload-item {
-        display: flex;
-        align-items: center;
-        margin-bottom: 15px;
-    }
-    .upload-details {
-        margin-left: 15px;
-    }
 </style>
 </head>
 <body>
@@ -129,21 +103,17 @@ function getImageUrl($folder, $filename) {
     <?php if (empty($currentUploads)): ?>
         <p>ยังไม่มีการอัพโหลด</p>
     <?php else: ?>
-        <ul style="list-style-type: none; padding: 0;">
+        <ul>
             <?php foreach ($currentUploads as $up): ?>
-                <li class="upload-item">
-                    <img 
-                        src="<?php echo htmlspecialchars(getImageUrl($up['folder'], $up['filename']), ENT_QUOTES, 'UTF-8'); ?>" 
-                        alt="<?php echo htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8'); ?>" 
-                        class="thumbnail"
-                        onerror="this.onerror=null; this.src='assets/images/placeholder.png';"
-                    >
-                    <div class="upload-details">
-                        <strong>ไฟล์:</strong> <?php echo htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8'); ?><br>
-                        <strong>โฟลเดอร์:</strong> <?php echo htmlspecialchars($up['folder'], ENT_QUOTES, 'UTF-8'); ?><br>
-                        <strong>อัพโหลดโดย:</strong> <?php echo htmlspecialchars($up['username'], ENT_QUOTES, 'UTF-8'); ?><br>
-                        <strong>อัพโหลดเมื่อ:</strong> <?php echo date("Y-m-d H:i:s", $up['timestamp']); ?><br>
-                    </div>
+                <li>
+                    <strong>ไฟล์:</strong> <?php echo htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <strong>โฟลเดอร์:</strong> <?php echo htmlspecialchars($up['folder'], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <strong>อัพโหลดโดย:</strong> <?php echo htmlspecialchars($up['username'], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <strong>อัพโหลดเมื่อ:</strong> <?php echo date("Y-m-d H:i:s", $up['timestamp']); ?><br>
+                    <!-- หากต้องการแสดงรูปจาก Virtual Directory เช่น http://your-domain/ProjectData/ -->
+                    <!-- <img src="http://your-domain/ProjectData/<?php echo rawurlencode(str_replace('\\','/',$up['folder'] . '/' . $up['filename'])); ?>" 
+                         alt="<?php echo htmlspecialchars($up['filename'], ENT_QUOTES, 'UTF-8'); ?>"
+                         style="max-width:200px;"> -->
                 </li>
             <?php endforeach; ?>
         </ul>
