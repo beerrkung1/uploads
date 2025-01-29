@@ -44,6 +44,9 @@ usort($uploads, function($a, $b) {
     <h1>Dashboard</h1>
     <div class="nav-links">
         <a href="upload.php">อัพโหลดรูปภาพใหม่</a> 
+        <?php if ($_SESSION['username'] === 'admin'): ?>
+            <a href="username.php">จัดการผู้ใช้</a>
+        <?php endif; ?>
         <a href="logout.php">ออกจากระบบ</a>
     </div>
     <h2>ประวัติการอัพโหลด</h2>
