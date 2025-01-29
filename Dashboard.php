@@ -85,7 +85,7 @@ usort($uploads, function($a, $b) {
                     <div class="upload-thumbnail">
                         <?php
                         // สร้าง URL สำหรับรูปภาพ
-                        $imageUrl = "http://" . $_SERVER['HTTP_HOST'] . "/ProjectData/" . rawurlencode(str_replace('\\','/', $up['folder'] . '/' . $up['filename']));
+                        $imageUrl = $config['upload_url'] . $up['folder'] . '/' . rawurlencode($up['filename']);
                         // ตรวจสอบว่าไฟล์เป็นภาพหรือไม่
                         $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
                         $fileExtension = strtolower(pathinfo($up['filename'], PATHINFO_EXTENSION));
