@@ -212,7 +212,6 @@ if (is_dir($upload_root)) {
             name="image" 
             required
             accept="image/*"
-            capture="environment"
         >
         <button type="submit">อัปโหลด</button>
     </form>
