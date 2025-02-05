@@ -53,42 +53,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
             $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้ (path ผิด หรือ permission ไม่พอ)";
         } else {
-            // ตรวจสอบไฟล์ที่อัปโหลด
-            if (isset($_FILES['image'])) {
-                $file_error = $_FILES['image']['error'];
-                if ($file_error === UPLOAD_ERR_OK) {
-                    // เริ่มการตั้งชื่อไฟล์ (ตามวันที่ + username + ลำดับ)
-                    $username = $_SESSION['username'];
-                    $today = date("Ymd");
-                    $count = 0; 
-                    
-                    // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
-                    if (file_exists($config['upload_log'])) {
-                        $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                        foreach ($log_lines as $line) {
-                            // รูปแบบ log: filename|timestamp|username|folder
-                            $parts = explode("|", $line);
-                            if (count($parts) === 4) {
-                                $log_timestamp = $parts[1];
-                                $log_user = $parts[2];
-                                $log_date = date("Ymd", $log_timestamp);
-                                // หาก user ตรงกันและวันเดียวกัน
-                                if ($log_user === $username && $log_date === $today) {
-                                    $count++;
-                                }
+            // ตรวจสอบไฟล์ที่อัปโหลดจากตัวเลือกทั้งสอง
+            $files_to_process = [];
+            // ตัวเลือก "ถ่ายรูป" (ไฟล์เดียว)
+            if (isset($_FILES['image_capture']) && $_FILES['image_capture']['error'] !== UPLOAD_ERR_NO_FILE) {
+                if ($_FILES['image_capture']['error'] === UPLOAD_ERR_OK) {
+                    $files_to_process[] = [
+                        'name'     => $_FILES['image_capture']['name'],
+                        'tmp_name' => $_FILES['image_capture']['tmp_name'],
+                        'error'    => $_FILES['image_capture']['error'],
+                        'size'     => $_FILES['image_capture']['size']
+                    ];
+                } else {
+                    $file_error = $_FILES['image_capture']['error'];
+                    $error = "เกิดข้อผิดพลาดในการอัปโหลด (รหัส: $file_error)";
+                }
+            }
+            // ตัวเลือก "เลือกรูปจากแกลเลอรี" (อาจเลือกได้หลายรูป)
+            elseif (isset($_FILES['image_gallery']) && count($_FILES['image_gallery']['name']) > 0 && $_FILES['image_gallery']['error'][0] !== UPLOAD_ERR_NO_FILE) {
+                foreach ($_FILES['image_gallery']['name'] as $key => $name) {
+                    if ($_FILES['image_gallery']['error'][$key] === UPLOAD_ERR_OK) {
+                        $files_to_process[] = [
+                            'name'     => $_FILES['image_gallery']['name'][$key],
+                            'tmp_name' => $_FILES['image_gallery']['tmp_name'][$key],
+                            'error'    => $_FILES['image_gallery']['error'][$key],
+                            'size'     => $_FILES['image_gallery']['size'][$key]
+                        ];
+                    } else {
+                        // หากไฟล์ใดมี error เราจะข้ามไฟล์นั้นไป (หรือสามารถจัดการแสดง error เพิ่มเติมได้)
+                        continue;
+                    }
+                }
+            } else {
+                $error = "ไม่มีไฟล์ถูกส่งมา";
+            }
+
+            // ถ้ามีไฟล์ที่ต้องอัปโหลด
+            if (empty($error) && !empty($files_to_process)) {
+                $username = $_SESSION['username'];
+                $today = date("Ymd");
+                $count = 0; 
+                
+                // นับจำนวนไฟล์ที่ user นี้อัปโหลดวันนี้จาก upload_log.txt
+                if (file_exists($config['upload_log'])) {
+                    $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                    foreach ($log_lines as $line) {
+                        // รูปแบบ log: filename|timestamp|username|folder
+                        $parts = explode("|", $line);
+                        if (count($parts) === 4) {
+                            $log_timestamp = $parts[1];
+                            $log_user = $parts[2];
+                            $log_date = date("Ymd", $log_timestamp);
+                            if ($log_user === $username && $log_date === $today) {
+                                $count++;
                             }
                         }
                     }
-
+                }
+                
+                foreach ($files_to_process as $file) {
                     $count++;
                     $seq = str_pad($count, 3, "0", STR_PAD_LEFT);
-                    $original_name = $_FILES['image']['name'];
+                    $original_name = $file['name'];
                     $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
                     $new_filename = "{$today}-{$username}-{$seq}.{$extension}";
-                    $temp_target = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
+                    $target_file = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
 
-                    // ย้ายไฟล์ไปยังโฟลเดอร์ปลายทาง
-                    if (move_uploaded_file($_FILES['image']['tmp_name'], $temp_target)) {
+                    if (move_uploaded_file($file['tmp_name'], $target_file)) {
                         // บันทึก log
                         $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
                         file_put_contents(
@@ -96,39 +127,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
                             FILE_APPEND
                         );
-                        $success = "อัปโหลดรูปภาพสำเร็จ";
+                        $success .= "อัปโหลดไฟล์ <strong>$new_filename</strong> สำเร็จ<br>";
                     } else {
-                        $error = "ไม่สามารถย้ายไฟล์ไปยังโฟลเดอร์ปลายทางได้ (ตรวจสอบ permission หรือขนาดไฟล์)";
-                    }
-                } else {
-                    // จัดการข้อผิดพลาดจาก $_FILES['image']['error']
-                    switch ($file_error) {
-                        case UPLOAD_ERR_INI_SIZE:
-                        case UPLOAD_ERR_FORM_SIZE:
-                            $error = "ไฟล์ที่อัปโหลดมีขนาดใหญ่เกินไป";
-                            break;
-                        case UPLOAD_ERR_PARTIAL:
-                            $error = "ไฟล์ถูกอัปโหลดมาไม่ครบ";
-                            break;
-                        case UPLOAD_ERR_NO_FILE:
-                            $error = "ไม่มีไฟล์ถูกอัปโหลด";
-                            break;
-                        case UPLOAD_ERR_NO_TMP_DIR:
-                            $error = "ไม่มีโฟลเดอร์ชั่วคราวบนเซิร์ฟเวอร์";
-                            break;
-                        case UPLOAD_ERR_CANT_WRITE:
-                            $error = "ไม่สามารถเขียนไฟล์ลงดิสก์ได้";
-                            break;
-                        case UPLOAD_ERR_EXTENSION:
-                            $error = "การอัปโหลดไฟล์ถูกยกเลิกโดยส่วนขยาย PHP";
-                            break;
-                        default:
-                            $error = "เกิดข้อผิดพลาดในการอัปโหลดไฟล์ (รหัสข้อผิดพลาด: $file_error)";
-                            break;
+                        $error .= "ไม่สามารถย้ายไฟล์ <strong>$new_filename</strong> ไปยังโฟลเดอร์ปลายทางได้<br>";
                     }
                 }
-            } else {
-                $error = "ไม่มีไฟล์ถูกส่งมา";
             }
         }
     }
@@ -159,6 +162,22 @@ if (is_dir($upload_root)) {
 <title>Upload รูปภาพ</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="assets/css/style.css">
+<style>
+    /* สไตล์ง่าย ๆ สำหรับปุ่ม */
+    .upload-btn {
+        display: inline-block;
+        padding: 10px 20px;
+        margin: 5px;
+        background-color: #4285f4;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .upload-btn:hover {
+        background-color: #357ae8;
+    }
+</style>
 </head>
 <body>
 <div class="container">
@@ -172,9 +191,10 @@ if (is_dir($upload_root)) {
         <div class="message" style="color:red;"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
     <?php endif; ?>
     <?php if (!empty($success)): ?>
-        <div class="message" style="color:green;"><?php echo htmlspecialchars($success, ENT_QUOTES, 'UTF-8'); ?></div>
+        <div class="message" style="color:green;"><?php echo $success; ?></div>
     <?php endif; ?>
 
+    <!-- ส่วนเลือกโฟลเดอร์ (เหมือนในโค้ดเดิม) -->
     <div>
         <label>Folders ปี:</label>
         <select id="first_select">
@@ -202,23 +222,36 @@ if (is_dir($upload_root)) {
     <div id="fullpath-info" style="margin-top:10px; color:green; font-weight: bold;"></div>
     <div id="fullpath-check" style="margin-top:5px; color:red;"></div>
 
+    <!-- ฟอร์มอัปโหลดไฟล์ -->
     <form method="post" enctype="multipart/form-data" id="upload-form" style="margin-top:20px;">
         <input type="hidden" name="first_folder" value="">
         <input type="hidden" name="second_folder" value="">
 
-        <label>ถ่ายรูปหรือเลือกรูปภาพ:</label>
-        <input 
-            type="file" 
-            name="image" 
-            required
-            accept="image/*"
-        >
-        <button type="submit">อัปโหลด</button>
+        <!-- ตัวเลือกการอัปโหลด: ให้เลือกได้แค่ตัวเลือกใดตัวเลือกหนึ่ง -->
+        <div>
+            <button type="button" class="upload-btn" id="btn-capture">ถ่ายรูป</button>
+            <button type="button" class="upload-btn" id="btn-gallery">เลือกรูปจากแกลเลอรี (เลือกได้หลายรูป)</button>
+        </div>
+
+        <!-- ส่วนของ input สำหรับถ่ายรูป (แสดงเฉพาะเมื่อกด "ถ่ายรูป") -->
+        <div id="capture-container" style="display:none; margin-top:10px;">
+            <label>ถ่ายรูป:</label>
+            <input type="file" name="image_capture" accept="image/*" capture="environment">
+        </div>
+
+        <!-- ส่วนของ input สำหรับเลือกรูปจากแกลเลอรี (แสดงเฉพาะเมื่อกด "เลือกรูปจากแกลเลอรี") -->
+        <div id="gallery-container" style="display:none; margin-top:10px;">
+            <label>เลือกรูปจากแกลเลอรี:</label>
+            <input type="file" name="image_gallery[]" accept="image/*" multiple>
+        </div>
+
+        <button type="submit" class="upload-btn" style="margin-top:20px;">อัปโหลด</button>
     </form>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    // ส่วนของโฟลเดอร์ (เหมือนในโค้ดเดิม)
     const firstSelect = document.getElementById('first_select');
     const secondSelect = document.getElementById('second_select');
     const selectedInfo = document.getElementById('selected-info');
@@ -240,7 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
             fullPathCheck.textContent = "";
             return;
         }
-
         firstFolderInput.value = chosenFirst;
         const path = chosenFirst + "\\Project";
         let subFolders = await loadSubFolders(path);
@@ -277,7 +309,6 @@ document.addEventListener('DOMContentLoaded', () => {
             defaultOpt.value = "";
             defaultOpt.textContent = "-กรุณาเลือก Project-";
             secondSelect.appendChild(defaultOpt);
-
             folders.forEach(f => {
                 let opt = document.createElement('option');
                 opt.value = f;
@@ -314,30 +345,24 @@ document.addEventListener('DOMContentLoaded', () => {
             fullPathCheck.textContent = "";
             return;
         }
-
         let base = "<?php echo addslashes($config['upload_directory']); ?>";
         base = base.replace(/\\/g, "\\\\"); 
-
         let fullPath = base + f1 + "\\Project\\";
         if (f2) {
             fullPath += f2 + "\\";
         }
         fullPath += "Engineering\\Pic\\";
-
         fullPathInfo.textContent = "Full Path: " + fullPath;
-
         checkPathExists(fullPath);
     }
 
     async function checkPathExists(fullPath) {
         let formData = new FormData();
         formData.append('check_path', fullPath);
-
         let resp = await fetch('check_path.php', {
             method: 'POST',
             body: formData
         });
-
         if (!resp.ok) {
             fullPathCheck.textContent = "ไม่สามารถตรวจสอบ path ได้ (status " + resp.status + ")";
             return;
@@ -350,15 +375,52 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // ส่วนของการเลือกวิธีอัปโหลด (ถ่ายรูป หรือเลือกรูปจากแกลเลอรี)
+    const btnCapture = document.getElementById('btn-capture');
+    const btnGallery = document.getElementById('btn-gallery');
+    const captureContainer = document.getElementById('capture-container');
+    const galleryContainer = document.getElementById('gallery-container');
+
+    btnCapture.addEventListener('click', () => {
+        // แสดงส่วนของการถ่ายรูปและซ่อนส่วนเลือกรูปจากแกลเลอรี
+        captureContainer.style.display = 'block';
+        galleryContainer.style.display = 'none';
+        // ล้างค่า input ในส่วนของแกลเลอรี
+        const galleryInput = galleryContainer.querySelector('input[name="image_gallery[]"]');
+        if(galleryInput) galleryInput.value = "";
+    });
+
+    btnGallery.addEventListener('click', () => {
+        // แสดงส่วนของเลือกรูปจากแกลเลอรีและซ่อนส่วนการถ่ายรูป
+        galleryContainer.style.display = 'block';
+        captureContainer.style.display = 'none';
+        // ล้างค่า input ในส่วนของถ่ายรูป
+        const captureInput = captureContainer.querySelector('input[name="image_capture"]');
+        if(captureInput) captureInput.value = "";
+    });
+
     // ตรวจสอบขนาดไฟล์ในฝั่งไคลเอนต์ (ก่อนส่งฟอร์ม)
     document.getElementById('upload-form').addEventListener('submit', function(e) {
-        const fileInput = document.querySelector('input[name="image"]');
-        const file = fileInput.files[0];
-        const maxSize = 10 * 1024 * 1024; // เพิ่มขนาดเป็น 10MB หรือปรับตามต้องการ
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        // ตรวจสอบในทั้งสอง input ที่อาจถูกแสดง
+        const captureInput = captureContainer.querySelector('input[name="image_capture"]');
+        const galleryInput = galleryContainer.querySelector('input[name="image_gallery[]"]');
 
-        if (file && file.size > maxSize) {
-            alert("ขนาดไฟล์ใหญ่เกินไป (สูงสุด 10MB)");
-            e.preventDefault();
+        if (captureContainer.style.display !== 'none' && captureInput.files.length > 0) {
+            const file = captureInput.files[0];
+            if (file.size > maxSize) {
+                alert("ขนาดไฟล์ใหญ่เกินไป (สูงสุด 10MB)");
+                e.preventDefault();
+            }
+        }
+        if (galleryContainer.style.display !== 'none' && galleryInput.files.length > 0) {
+            for (let file of galleryInput.files) {
+                if (file.size > maxSize) {
+                    alert("ขนาดไฟล์บางไฟล์ใหญ่เกินไป (สูงสุด 10MB)");
+                    e.preventDefault();
+                    break;
+                }
+            }
         }
     });
 });
