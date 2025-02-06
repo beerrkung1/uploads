@@ -177,6 +177,11 @@ if (is_dir($upload_root)) {
     .upload-btn:hover {
         background-color: #357ae8;
     }
+    /* ปุ่ม disabled */
+    .upload-btn:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+    }
 </style>
 </head>
 <body>
@@ -245,7 +250,8 @@ if (is_dir($upload_root)) {
             <input type="file" name="image_gallery[]" accept="image/*" multiple>
         </div>
 
-        <button type="submit" class="upload-btn" style="margin-top:20px;">อัปโหลด</button>
+        <!-- ปุ่มอัปโหลดที่มี id สำหรับใช้งาน JavaScript -->
+        <button type="submit" id="upload-submit" class="upload-btn" style="margin-top:20px;" disabled>อัปโหลด</button>
     </form>
 </div>
 
@@ -257,9 +263,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedInfo = document.getElementById('selected-info');
     const fullPathInfo = document.getElementById('fullpath-info');
     const fullPathCheck = document.getElementById('fullpath-check');
+    const submitBtn = document.getElementById('upload-submit');
 
     const firstFolderInput = document.querySelector('input[name="first_folder"]');
     const secondFolderInput = document.querySelector('input[name="second_folder"]');
+
+    // เมื่อหน้าเพจโหลดขึ้นมาให้ปุ่มอัปโหลดปิดอยู่
+    submitBtn.disabled = true;
 
     firstSelect.addEventListener('change', async () => {
         const chosenFirst = firstSelect.value;
@@ -271,11 +281,16 @@ document.addEventListener('DOMContentLoaded', () => {
         fullPathInfo.textContent = "";
         fullPathCheck.textContent = "";
 
+        // หากยังไม่เลือก first_folder ให้ปิดการใช้งานปุ่มอัปโหลด
         if (!chosenFirst) {
             firstFolderInput.value = "";
+            submitBtn.disabled = true;
             return;
         }
         firstFolderInput.value = chosenFirst;
+        // เมื่อเลือก first_folder แล้ว เปิดใช้งานปุ่มอัปโหลด
+        submitBtn.disabled = false;
+        
         const path = chosenFirst + "\\Project";
         let subFolders = await loadSubFolders(path);
         renderSecondLevel(subFolders);
