@@ -39,20 +39,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     . "Pic" 
                     . DIRECTORY_SEPARATOR;
 
-        // สร้างโฟลเดอร์หากไม่มี
+        // ตรวจสอบว่าโฟลเดอร์ปลายทางมีอยู่หรือไม่ หากไม่มี ไม่อนุญาตให้สร้างใหม่และไม่ให้ upload
         if (!is_dir($final_path)) {
-            if (!@mkdir($final_path, 0777, true)) {
-                $error = "ไม่สามารถสร้างโฟลเดอร์ปลายทางได้ (ตรวจสอบสิทธิ์)";
-            }
+            $error = "โฟลเดอร์ปลายทางไม่พบ (ไม่อนุญาติให้สร้างใหม่)";
         }
 
         $real_base = realpath($config['upload_directory']);
         $real_target_dir = realpath($final_path);
 
         // ตรวจสอบว่ามีโฟลเดอร์จริงหรือไม่ และอยู่ภายใต้ base
-        if ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0) {
+        if (empty($error) && ($real_target_dir === false || strpos($real_target_dir, $real_base) !== 0)) {
             $error = "ไม่สามารถเข้าถึงโฟลเดอร์ปลายทางได้ (path ผิด หรือ permission ไม่พอ)";
-        } else {
+        }
+
+        // หากไม่มี error ให้ดำเนินการต่อ
+        if (empty($error)) {
             // ตรวจสอบไฟล์ที่อัปโหลดจากตัวเลือกทั้งสอง
             $files_to_process = [];
             // ตัวเลือก "ถ่ายรูป" (ไฟล์เดียว)
@@ -80,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'size'     => $_FILES['image_gallery']['size'][$key]
                         ];
                     } else {
-                        // หากไฟล์ใดมี error เราจะข้ามไฟล์นั้นไป (หรือสามารถจัดการแสดง error เพิ่มเติมได้)
+                        // หากไฟล์ใดมี error เราจะข้ามไฟล์นั้นไป
                         continue;
                     }
                 }
@@ -98,9 +99,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (file_exists($config['upload_log'])) {
                     $log_lines = file($config['upload_log'], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
                     foreach ($log_lines as $line) {
-                        // รูปแบบ log: filename|timestamp|username|folder
+                        // รูปแบบ log: filename|timestamp|username
                         $parts = explode("|", $line);
-                        if (count($parts) === 4) {
+                        if (count($parts) >= 3) {
                             $log_timestamp = $parts[1];
                             $log_user = $parts[2];
                             $log_date = date("Ymd", $log_timestamp);
@@ -120,11 +121,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $target_file = $real_target_dir . DIRECTORY_SEPARATOR . $new_filename;
 
                     if (move_uploaded_file($file['tmp_name'], $target_file)) {
-                        // บันทึก log
-                        $chosen_path = $first_folder . "\\Project\\" . $second_folder . "\\Engineering\\Pic";
+                        // บันทึก log (ไม่บันทึก path)
                         file_put_contents(
                             $config['upload_log'], 
-                            $new_filename . "|" . time() . "|" . $username . "|" . $chosen_path . "\n", 
+                            $new_filename . "|" . time() . "|" . $username . "\n", 
                             FILE_APPEND
                         );
                         $success .= "อัปโหลดไฟล์ <strong>$new_filename</strong> สำเร็จ<br>";
@@ -194,7 +194,7 @@ if (is_dir($upload_root)) {
         <div class="message" style="color:green;"><?php echo $success; ?></div>
     <?php endif; ?>
 
-    <!-- ส่วนเลือกโฟลเดอร์ (เหมือนในโค้ดเดิม) -->
+    <!-- ส่วนเลือกโฟลเดอร์ -->
     <div>
         <label>Folders ปี:</label>
         <select id="first_select">
@@ -251,7 +251,7 @@ if (is_dir($upload_root)) {
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // ส่วนของโฟลเดอร์ (เหมือนในโค้ดเดิม)
+    // ส่วนของโฟลเดอร์
     const firstSelect = document.getElementById('first_select');
     const secondSelect = document.getElementById('second_select');
     const selectedInfo = document.getElementById('selected-info');
@@ -263,20 +263,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     firstSelect.addEventListener('change', async () => {
         const chosenFirst = firstSelect.value;
+        // เมื่อเปลี่ยน first_folder ให้ล้างข้อมูลของ second_folder ด้วย
+        secondSelect.innerHTML = '<option value="">กรุณาเลือก Project</option>';
+        secondSelect.disabled = true;
+        secondFolderInput.value = "";
+        selectedInfo.textContent = "";
+        fullPathInfo.textContent = "";
+        fullPathCheck.textContent = "";
+
         if (!chosenFirst) {
-            secondSelect.innerHTML = '<option value="">-กรุณาเลือก Project-</option>';
-            secondSelect.disabled = true;
-            selectedInfo.textContent = "";
             firstFolderInput.value = "";
-            secondFolderInput.value = "";
-            fullPathInfo.textContent = "";
-            fullPathCheck.textContent = "";
             return;
         }
         firstFolderInput.value = chosenFirst;
         const path = chosenFirst + "\\Project";
         let subFolders = await loadSubFolders(path);
         renderSecondLevel(subFolders);
+        // กำหนดค่าให้ second_folder เป็นค่าว่างหลังจากโหลดรายการใหม่
+        secondSelect.value = "";
+        secondFolderInput.value = "";
         updateSelectedInfo();
         updateFullPathInfo();
     });
